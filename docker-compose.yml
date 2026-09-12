@@ -1,0 +1,77 @@
+# Lenny Growth Assistant — one-command local deployment.
+#
+#   cp .env.example .env        # optional: set ANTHROPIC_API_KEY, change models
+#   docker compose up --build   # UI → http://localhost:3000   API → http://localhost:8000/docs
+#
+# Ollama runs on the HOST by default (best CPU/GPU performance). The API container
+# reaches it at http://host.docker.internal:11434. See README → "Local model (Ollama)".
+# Prefer everything in Docker?  docker compose --profile ollama-in-docker up --build
+
+name: lenny-growth-assistant
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lenny}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lenny}
+      POSTGRES_DB: ${POSTGRES_DB:-lenny}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lenny} -d ${POSTGRES_DB:-lenny}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: ./backend
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # Compose-internal wiring; everything else comes from .env
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://${POSTGRES_USER:-lenny}:${POSTGRES_PASSWORD:-lenny}@db:5432/${POSTGRES_DB:-lenny}}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      TRANSCRIPTS_DIR: /app/data/transcripts
+      CORS_ORIGINS: http://localhost:3000,http://localhost:5173
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # Linux; Docker Desktop provides it natively
+    volumes:
+      - transcripts:/app/data                 # cloned once, reused across restarts
+    ports:
+      - "${API_PORT:-8000}:8000"
+    restart: unless-stopped
+
+  web:
+    build: ./frontend
+    depends_on:
+      - api
+    ports:
+      - "${WEB_PORT:-3000}:80"
+    restart: unless-stopped
+
+  # Optional: run Ollama inside Docker instead of on the host.
+  #   docker compose --profile ollama-in-docker up --build
+  #   docker compose exec ollama ollama pull qwen2.5:7b
+  #   docker compose exec ollama ollama pull nomic-embed-text
+  # and set OLLAMA_BASE_URL=http://ollama:11434 in .env
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ollama-in-docker"]
+    volumes:
+      - ollama:/root/.ollama
+    ports:
+      - "11434:11434"
+    environment:
+      OLLAMA_CONTEXT_LENGTH: "8192"
+
+volumes:
+  pgdata:
+  transcripts:
+  ollama:

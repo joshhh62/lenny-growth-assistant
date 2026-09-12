@@ -12,9 +12,10 @@ from fastapi.responses import JSONResponse
 
 from app.api.routes import router
 from app.config import get_settings
-from app.db.database import DatabaseUnavailable, apply_schema, dispose, get_sessionmaker, wait_for_db
+from app.db.database import DatabaseUnavailable, apply_schema, db_health, dispose, get_sessionmaker, wait_for_db
 from app.logging_setup import RequestContextMiddleware, configure_logging, get_logger, request_id_var
 from app.rag.embeddings import EmbeddingWorker, OllamaEmbedder
+from app.rag.ingest import run_ingest
 
 log = get_logger("app")
 
@@ -35,6 +36,19 @@ async def lifespan(app: FastAPI):
     else:
         # Start anyway so /health reports the problem instead of the container crash-looping.
         log.error("db_unavailable_at_startup", database_url=s.database_url.split("@")[-1])
+
+    if app.state.db_ready and s.auto_ingest_on_start:
+        stats = await db_health()
+        if stats.get("ok") and stats.get("episodes", 0) == 0:
+            log.info("auto_ingest_scheduled", reason="knowledge base is empty")
+
+            async def _first_ingest() -> None:
+                try:
+                    await run_ingest(get_sessionmaker())
+                except Exception:  # noqa: BLE001
+                    log.exception("auto_ingest_failed")
+
+            asyncio.create_task(_first_ingest(), name="auto-ingest")
 
     if s.embeddings_enabled:
         app.state.embedder = OllamaEmbedder()
