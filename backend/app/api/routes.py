@@ -145,7 +145,11 @@ async def post_message(session_id: uuid.UUID, body: MessageCreate, request: Requ
 
     events = EventStream()
 
+    worker = getattr(request.app.state, "embedding_worker", None)
+
     async def run() -> None:
+        if worker:
+            worker.busy += 1  # pause background embeddings while the model works
         try:
             async with sm() as db:
                 service = ChatService(db, _embedder(request))
@@ -154,6 +158,8 @@ async def post_message(session_id: uuid.UUID, body: MessageCreate, request: Requ
             log.exception("chat_task_failed")
             await events.emit("error", code="internal", message=f"{type(exc).__name__}: {str(exc)[:200]}", retryable=True)
         finally:
+            if worker:
+                worker.busy = max(0, worker.busy - 1)
             await events.close()
 
     task = asyncio.create_task(run())

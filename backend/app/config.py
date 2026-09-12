@@ -45,7 +45,9 @@ class Settings(BaseSettings):
     # Which agent runtime to use. `auto` = agent_sdk for anthropic, messages_loop
     # for ollama (see architecture.md → "Agent runtimes").
     agent_runtime: Runtime = "auto"
-    llm_timeout_s: float = 120.0
+    # Read timeout per model request. Local CPU models can take minutes to process
+    # a grounded prompt before the first token, so this is generous by default.
+    llm_timeout_s: float = 300.0
     llm_max_tool_rounds: int = 6
     llm_max_output_tokens: int = 2048
 
@@ -67,6 +69,9 @@ class Settings(BaseSettings):
     # Minimum context window we expect Ollama to run the model with. Readiness
     # warns when the loaded model reports less (prompts would be truncated).
     ollama_min_context: int = 8192
+    # Fewer passages for the local model: prompt size is the main driver of
+    # time-to-first-token on CPU (each passage ≈ 350 tokens).
+    ollama_retrieval_top_k: int = 4
 
     # --- Retrieval -----------------------------------------------------------
     transcripts_dir: str = "./data/transcripts"
@@ -106,6 +111,9 @@ class Settings(BaseSettings):
 
     def tools_enabled_for(self, provider: Provider) -> bool:
         return True if provider == "anthropic" else self.ollama_tools_enabled
+
+    def retrieval_top_k_for(self, provider: Provider) -> int:
+        return self.retrieval_top_k if provider == "anthropic" else self.ollama_retrieval_top_k
 
     def max_output_tokens_for(self, provider: Provider) -> int:
         return self.llm_max_output_tokens if provider == "anthropic" else self.ollama_max_output_tokens

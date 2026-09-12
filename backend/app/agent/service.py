@@ -136,7 +136,7 @@ class ChatService:
             if prev:
                 query = f"{prev} {user_text}"
         await ctx.events.emit("status", text="Searching transcripts…")
-        found, _ = await self.retriever.search(query)
+        found, _ = await self.retriever.search(query, top_k=self.settings.retrieval_top_k_for(runtime.provider))  # type: ignore[arg-type]
         ctx.add_citations(found)
         numbered = [c.to_dict() | {"n": i} for i, c in enumerate(ctx.citations, 1)]
         await ctx.events.emit("citations", items=numbered)
