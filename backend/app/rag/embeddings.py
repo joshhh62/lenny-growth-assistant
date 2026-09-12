@@ -61,12 +61,18 @@ class OllamaEmbedder:
 
 
 class EmbeddingWorker:
-    """Fills `chunks.embedding` in the background. Safe to restart at any time."""
+    """Fills `chunks.embedding` in the background. Safe to restart at any time.
+
+    Yields to foreground work: while any chat turn is in flight (`busy` > 0) the
+    worker pauses, so a CPU-bound local model is not competing with embedding
+    batches for the same cores.
+    """
 
     def __init__(self, sessionmaker, embedder: OllamaEmbedder):
         self.sessionmaker = sessionmaker
         self.embedder = embedder
         self._task: asyncio.Task | None = None
+        self.busy = 0  # number of chat turns currently running
         self.state: dict = {"status": "idle", "embedded": 0, "error": None, "last_batch_ms": None}
 
     def start(self) -> None:
@@ -90,6 +96,10 @@ class EmbeddingWorker:
         backoff = 5.0
         while True:
             try:
+                if self.busy > 0:
+                    self.state["status"] = "paused_for_chat"
+                    await asyncio.sleep(2)
+                    continue
                 async with self.sessionmaker() as db:
                     repo = KnowledgeRepo(db)
                     batch = await repo.unembedded_chunks(s.embed_batch_size)
