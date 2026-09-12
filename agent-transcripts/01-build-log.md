@@ -121,6 +121,17 @@ Only the sidebar list was updated. ✓ Update the active session too.
 ### ✓ Verified the sandbox visually
 Hostile HTML (script exfiltrating cookies, `onclick`, `javascript:` link, iframe, remote tracking image, form) rendered as: a styled `<h1>`, a paragraph, and an inert link. Legitimate CSS survived.
 
+## 5b. Local-model hardening and the Agent SDK dry run
+
+**[me]** Worried about what we could not test in the cloud container: the CPU-bound local path and the Agent SDK runtime.
+
+**[agent]** Estimated prompt sizes against Ollama's default 4k context and concluded grounded prompts would be silently truncated. Added: an 8k-context requirement in setup, a readiness warning that reads the loaded model's `context_length` from `/api/ps`, tools-off-by-default for local free-form chat (each tool round re-processes the whole prompt on CPU), an 800-token output cap locally, and a cheaper essay policy locally (8 passages, revise only when badly off).
+
+### ✗ Agent SDK dry run "worked" but never reached our tool
+Ran the real SDK subprocess against the fake Messages API. Streaming and results worked, but the fake emitted a bare `search_transcripts` tool name while the SDK registers MCP tools as `mcp__lenny__search_transcripts`, so the CLI reported an unknown tool and the fake happily continued.
+### ✓
+Made the fake pick the tool name from the request's `tools` list. Re-ran: `tool_call → status → citations → tool_result → token…` in 1.4 s, with our handler executing real retrieval. Turned it into an integration test (`test_agent_sdk_runtime_calls_mcp_tool_and_streams`). 46 tests.
+
 ## 6. Deployment and docs
 
 **[agent]** Dockerfiles, Compose (db/api/web + optional `ollama-in-docker` profile), `.env.example`, Makefile, `scripts/smoke.sh`, auto-ingest on empty DB at startup.

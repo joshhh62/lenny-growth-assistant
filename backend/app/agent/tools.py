@@ -32,7 +32,8 @@ class ToolContext:
     retriever: Retriever
     convo: ConversationRepo
     events: EventStream
-    generate: Callable[[str, str], Awaitable[str]]  # plain (system, user) → text, for sub-skills
+    generate: Callable[..., Awaitable[str]]  # plain (system, user, *, max_tokens) → text, for sub-skills
+    cheap_generation: bool = False  # True for CPU-bound local models: fewer/shorter passes
     citations: list[Citation] = field(default_factory=list)  # numbered 1..n in order added
     artifacts: list[dict] = field(default_factory=list)
     tool_calls: list[dict] = field(default_factory=list)
@@ -114,6 +115,7 @@ async def _write_essay(ctx: ToolContext, args: dict) -> str:
         essay, cites, check = await write_essay(
             topic, angle, ctx.retriever, ctx.generate,
             on_status=lambda t: ctx.events.emit("status", text=t),
+            cheap_revision=ctx.cheap_generation,
         )
     except LookupError as exc:
         return f"Could not write the essay: {exc}"

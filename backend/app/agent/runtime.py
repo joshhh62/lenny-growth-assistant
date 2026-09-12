@@ -105,7 +105,8 @@ class MessagesLoopRuntime:
         while rounds < s.llm_max_tool_rounds:
             rounds += 1
             kwargs: dict[str, Any] = dict(
-                model=self.model, system=system, messages=convo, max_tokens=s.llm_max_output_tokens
+                model=self.model, system=system, messages=convo,
+                max_tokens=s.max_output_tokens_for(self.provider),  # type: ignore[arg-type]
             )
             if tools:
                 kwargs["tools"] = tools

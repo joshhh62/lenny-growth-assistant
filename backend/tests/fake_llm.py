@@ -133,7 +133,9 @@ def _decide(body: dict) -> dict:
     if "well-structured Markdown" in last_text:
         return {"kind": "text", "text": MARKDOWN_DOC}
     if tools and "USE_TOOL:search" in last_text and not has_tool_result:
-        return {"kind": "tool", "name": "search_transcripts", "input": {"query": "retention cohorts"}}
+        # Use the name as advertised (the Agent SDK prefixes MCP tools: mcp__lenny__search_transcripts).
+        name = next((t["name"] for t in tools if t["name"].endswith("search_transcripts")), "search_transcripts")
+        return {"kind": "tool", "name": name, "input": {"query": "retention cohorts"}}
     if has_tool_result:
         return {"kind": "text", "text": "After searching again: retention is the foundation of growth [1]."}
     return {"kind": "text", "text": "Grounded answer: retention comes first, per the guests [1][2]."}

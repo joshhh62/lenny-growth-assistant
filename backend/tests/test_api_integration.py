@@ -237,3 +237,24 @@ async def test_database_down_returns_503(client, monkeypatch):
     database._sessionmaker = None
     r = await client.get("/api/config")
     assert r.status_code == 503 and r.json()["error"]["code"] == "database_unavailable"
+
+
+# --- Claude Agent SDK runtime ------------------------------------------------
+async def test_agent_sdk_runtime_calls_mcp_tool_and_streams(client, monkeypatch):
+    """Drives the real Claude Agent SDK subprocess against the fake Messages API:
+    our tools are registered as an in-process MCP server, the model's tool_use is
+    routed to `search_transcripts`, and the answer streams back."""
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "agent_runtime", "agent_sdk")
+    monkeypatch.setattr(get_settings(), "llm_timeout_s", 60.0)
+    sid = (await client.post("/api/sessions", json={})).json()["id"]
+    events = await chat(client, sid, "USE_TOOL:search cohorts via sdk")
+    assert events[0]["type"] == "provider" and events[0]["runtime"] == "agent_sdk"
+    assert [e["name"] for e in events if e["type"] == "tool_call"] == ["search_transcripts"]
+    text = "".join(e["text"] for e in events if e["type"] == "token")
+    assert "After searching again" in text
+    assert events[-1]["type"] == "done"
+    detail = (await client.get(f"/api/sessions/{sid}")).json()
+    assert detail["messages"][-1]["runtime"] == "agent_sdk"
+    assert detail["messages"][-1]["citations"][0]["guest"]

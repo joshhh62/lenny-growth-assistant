@@ -139,7 +139,7 @@ User toggles **Local ↔ Cloud** in the sidebar (per conversation). If the chose
 |---|---|---|
 | **0. Discovery (½ day)** | Read brief; profile the corpus (formats, sizes, duplicates); read Ship 30 guide; confirm Ollama's Anthropic-compatible API and Agent SDK capabilities | Chose: one client library for both providers; two runtimes; hybrid retrieval that never depends on Ollama |
 | **1. Data + retrieval (½ day)** | Parser for 3 transcript formats, timestamp-preserving chunker, dedupe, Postgres schema (FTS + pgvector), background embedding worker, RRF fusion | 272 episodes / 27.9k chunks ingest in ~15 s; lexical search < 10 ms |
-| **2. Agent layer (½ day)** | Tool registry, Messages-loop runtime, Agent SDK runtime, deterministic router, Ship 30 skill + checks, artifact sanitizer, orchestration with typed errors | 45 automated tests, fake LLM fixture |
+| **2. Agent layer (½ day)** | Tool registry, Messages-loop runtime, Agent SDK runtime, deterministic router, Ship 30 skill + checks, artifact sanitizer, orchestration with typed errors | 46 automated tests, fake LLM fixture (incl. the Agent SDK path) |
 | **3. UI (½ day)** | React/Vite three-pane app, SSE streaming, citations, artifact viewer with sandbox, provider toggle, responsive + a11y | Verified with scripted browser runs at 1440 px and 400 px |
 | **4. Ops + docs (½ day)** | Compose, Dockerfiles, `.env.example`, Makefile, smoke test, README/PRD/design/architecture, manual test plan, agent transcripts | Fresh-clone verification, demo video |
 

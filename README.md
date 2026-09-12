@@ -15,7 +15,7 @@ A grounded, conversational assistant over **Lenny's Podcast transcripts** for pr
 | **Local or cloud model, switchable in the UI** | Ollama (`qwen2.5:7b`, default, zero keys) or Anthropic Claude. Documented fallback when one is down. |
 | **Ship 30 for 30 essay skill** | Principles encoded in [`SKILL.md`](backend/app/skills/ship30/SKILL.md); ~1,250 words; programmatic quality checks + revision pass. |
 | **Artifacts** | Markdown docs and complete HTML/CSS pages, sanitized server-side and rendered in a sandboxed viewer next to the chat. |
-| **Operable** | `docker compose up`, structured JSON logs, `/health/ready` that names what's wrong, typed errors, 45 automated tests + a smoke script. |
+| **Operable** | `docker compose up`, structured JSON logs, `/health/ready` that names what's wrong, typed errors, 46 automated tests + a smoke script. |
 
 ## Architecture in one paragraph
 
@@ -41,10 +41,11 @@ cd lenny-growth-assistant
 ollama pull qwen2.5:7b
 ollama pull nomic-embed-text
 
-# 2. Let Docker reach Ollama on your machine (one-time)
-#    Windows: set a user environment variable OLLAMA_HOST=0.0.0.0, then quit & relaunch Ollama from the tray.
-#    macOS:   launchctl setenv OLLAMA_HOST 0.0.0.0 && restart Ollama
-#    Linux:   OLLAMA_HOST=0.0.0.0 ollama serve
+# 2. Configure Ollama (one-time): reachable from Docker + an 8k context window
+#    Windows: set user environment variables OLLAMA_HOST=0.0.0.0 and OLLAMA_CONTEXT_LENGTH=8192,
+#             then quit & relaunch Ollama from the tray.
+#    macOS:   launchctl setenv OLLAMA_HOST 0.0.0.0; launchctl setenv OLLAMA_CONTEXT_LENGTH 8192; restart Ollama
+#    Linux:   OLLAMA_HOST=0.0.0.0 OLLAMA_CONTEXT_LENGTH=8192 ollama serve
 
 # 3. Configure (defaults are fine; add ANTHROPIC_API_KEY if you want Cloud)
 cp .env.example .env
@@ -73,6 +74,8 @@ All configuration is environment variables — see [`.env.example`](.env.example
 | `OLLAMA_BASE_URL` | `http://host.docker.internal:11434` | `http://localhost:11434` when running without Docker. |
 | `OLLAMA_MODEL` | `qwen2.5:7b` | Any Ollama chat model with tool support (`llama3.1:8b`, `qwen2.5:3b`, …). |
 | `OLLAMA_EMBED_MODEL` | `nomic-embed-text` | Embeddings; retrieval degrades to lexical if unavailable. |
+| `OLLAMA_TOOLS_ENABLED` | `false` | Expose tools to the local model in free-form chat. Off by default: on a CPU model every tool round re-processes the whole prompt (see architecture.md → Agent runtimes). Skills are unaffected. |
+| `OLLAMA_MAX_OUTPUT_TOKENS` | `800` | Cap on local answer length (≈100 s worst case at 8 tok/s). |
 | `DATABASE_URL` | compose-internal | For Supabase/Railway: `postgresql+asyncpg://…` with the `vector` extension enabled. |
 | `INGEST_EPISODE_LIMIT` | `0` (all) | Ingest a subset for a quick look. |
 
@@ -86,7 +89,9 @@ Put `ANTHROPIC_API_KEY=sk-ant-…` in `.env`, restart `api`. The Cloud toggle tu
 ### Local model (Ollama)
 Ollama runs on the host for performance. Prefer everything in Docker? `docker compose --profile ollama-in-docker up --build`, then `docker compose exec ollama ollama pull qwen2.5:7b` (and `nomic-embed-text`) and set `OLLAMA_BASE_URL=http://ollama:11434`.
 
-Tip: give the local model more room with `OLLAMA_CONTEXT_LENGTH=8192` in Ollama's environment (default 4096 is enough for chat; essays benefit from 8k).
+**Context window.** Ollama's default 4,096-token window is too small for grounded prompts (passages + history + skill instructions) and would truncate them silently. Set `OLLAMA_CONTEXT_LENGTH=8192` as in Quick start; the sidebar shows a warning if the loaded model reports less.
+
+**Expected timings on the reference laptop** (i5-12500H, 16 GB, CPU, `qwen2.5:7b`): first token ≈ 10–30 s, a chat answer ≈ 30–90 s, an essay ≈ 3–5 minutes, an HTML artifact ≈ 2–3 minutes. `qwen2.5:3b` is roughly twice as fast with a quality trade-off. Cloud answers in a few seconds.
 
 ## Running without Docker
 
@@ -103,7 +108,7 @@ cd ../frontend && npm ci && npm run dev      # http://localhost:5173 (proxies /a
 
 ```bash
 cd backend
-python -m pytest -q                       # 45 tests: unit + integration (needs Postgres; creates lenny_test)
+python -m pytest -q                       # 46 tests: unit + integration (needs Postgres; creates lenny_test)
 python -m pytest -q tests/test_units.py tests/test_ingest.py   # unit only, no database
 ```
 Or inside Compose: `make test-integration`.
@@ -162,7 +167,7 @@ PRD.md · architecture.md · design.md · docs/manual-test-plan.md · agent-tran
 
 ## Verified on
 - Windows 11, i5-12500H, 16 GB, no dGPU — Docker Desktop (WSL 2) + host Ollama `qwen2.5:7b` — see the demo video.
-- Ubuntu 24.04 container (CI-like): full test suite, 45/45 passing in ~15 s.
+- Ubuntu 24.04 container (CI-like): full test suite, 46/46 passing in ~15 s.
 
 ## Licence & credits
 Transcripts © Lenny Rachitsky, archived by [ChatPRD/lennys-podcast-transcripts](https://github.com/ChatPRD/lennys-podcast-transcripts). Ship 30 for 30 principles from the [Ultimate Guide](https://www.ship30for30.com/post/how-to-start-writing-online-the-ship-30-for-30-ultimate-guide). Code MIT.

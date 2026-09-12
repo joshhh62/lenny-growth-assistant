@@ -57,7 +57,16 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "qwen2.5:7b"
     ollama_embed_model: str = "nomic-embed-text"
-    ollama_num_ctx: int = 8192
+    # CPU-bound models re-process the whole prompt on every tool round, so by
+    # default local chat relies on retrieve-then-generate (passages are always
+    # injected) and does not expose tools to the model. Skills (essay, artifact)
+    # are routed deterministically and unaffected. Flip on for a stronger local box.
+    ollama_tools_enabled: bool = False
+    # Shorter answers locally: at ~8 tok/s, 800 tokens is already ~100 s worst case.
+    ollama_max_output_tokens: int = 800
+    # Minimum context window we expect Ollama to run the model with. Readiness
+    # warns when the loaded model reports less (prompts would be truncated).
+    ollama_min_context: int = 8192
 
     # --- Retrieval -----------------------------------------------------------
     transcripts_dir: str = "./data/transcripts"
@@ -94,6 +103,12 @@ class Settings(BaseSettings):
 
     def model_for(self, provider: Provider) -> str:
         return self.anthropic_model if provider == "anthropic" else self.ollama_model
+
+    def tools_enabled_for(self, provider: Provider) -> bool:
+        return True if provider == "anthropic" else self.ollama_tools_enabled
+
+    def max_output_tokens_for(self, provider: Provider) -> int:
+        return self.llm_max_output_tokens if provider == "anthropic" else self.ollama_max_output_tokens
 
     def runtime_for(self, provider: Provider) -> Runtime:
         if self.agent_runtime != "auto":

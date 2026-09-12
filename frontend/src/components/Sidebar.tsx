@@ -80,6 +80,7 @@ export function Sidebar({
               {chosen.available ? (
                 <>
                   <b>{chosen.model}</b> via {chosen.runtime === "agent_sdk" ? "Claude Agent SDK" : "Messages loop"}
+                  {chosen.warning && <div className="provider-note bad" style={{ marginTop: 4 }}>⚠ {chosen.warning}</div>}
                 </>
               ) : (
                 <>

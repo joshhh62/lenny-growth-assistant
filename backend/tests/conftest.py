@@ -46,6 +46,7 @@ def test_env(fake_llm):
         "EMBEDDINGS_ENABLED": "true",
         "ANTHROPIC_API_KEY": "",
         "AGENT_RUNTIME": "messages_loop",
+        "OLLAMA_TOOLS_ENABLED": "true",  # exercise the tool loop against the fake
         "LOG_FORMAT": "console",
         "LOG_LEVEL": "WARNING",
         "APP_ENV": "test",

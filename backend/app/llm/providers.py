@@ -31,6 +31,7 @@ class ProviderStatus:
     reason: str = ""
     latency_ms: float | None = None
     runtime: str = ""
+    warning: str = ""
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -58,7 +59,21 @@ async def check_ollama() -> ProviderStatus:
                 f"Model '{s.ollama_model}' not pulled. Run: ollama pull {s.ollama_model}", ms,
                 s.runtime_for("ollama"),
             )
-        return ProviderStatus("ollama", True, s.ollama_model, "ok", ms, s.runtime_for("ollama"))
+        status = ProviderStatus("ollama", True, s.ollama_model, "ok", ms, s.runtime_for("ollama"))
+        # If the model is already loaded, Ollama reports its effective context window.
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(3.0, connect=2.0)) as c:
+                ps = (await c.get(f"{s.ollama_base_url.rstrip('/')}/api/ps")).json()
+            for m in ps.get("models", []):
+                if m.get("name") in (wanted, s.ollama_model) and m.get("context_length"):
+                    if int(m["context_length"]) < s.ollama_min_context:
+                        status.warning = (
+                            f"Loaded with a {m['context_length']}-token context; prompts may be truncated. "
+                            f"Set OLLAMA_CONTEXT_LENGTH={s.ollama_min_context} in Ollama's environment and restart it."
+                        )
+        except Exception:  # noqa: BLE001 — informational only
+            pass
+        return status
     except Exception as exc:  # noqa: BLE001
         return ProviderStatus(
             "ollama", False, s.ollama_model,

@@ -103,7 +103,8 @@ def _fmt(seconds: int | None) -> str:
     return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
 
 
-Generate = Callable[[str, str], Awaitable[str]]  # (system, user) -> markdown
+Generate = Callable[..., Awaitable[str]]  # (system, user, *, max_tokens) -> markdown
+ESSAY_MAX_TOKENS = 2200  # ~1,400 words + headings
 
 
 async def write_essay(
@@ -113,12 +114,13 @@ async def write_essay(
     generate: Generate,
     *,
     on_status: Callable[[str], Awaitable[None]] | None = None,
+    cheap_revision: bool = False,
 ) -> tuple[str, list[Citation], EssayCheck]:
     angle = angle if angle in ANGLES else "actionable"
     if on_status:
         await on_status("Gathering transcript passages for the essay…")
 
-    # Multi-query retrieval, merged and deduped, capped at 10 passages (~3.5k tokens).
+    # Multi-query retrieval, merged and deduped, capped at 8–10 passages (~3k tokens).
     seen: set[int] = set()
     citations: list[Citation] = []
     for q in _expand_queries(topic, angle):
@@ -127,7 +129,7 @@ async def write_essay(
             if c.id not in seen:
                 seen.add(c.id)
                 citations.append(c)
-    citations = citations[:10]
+    citations = citations[: 8 if cheap_revision else 10]  # keep local prompts inside an 8k window
     if len(citations) < 2:
         raise LookupError(
             f"Not enough transcript material about '{topic}' to write a grounded essay."
@@ -144,11 +146,14 @@ async def write_essay(
     )
     if on_status:
         await on_status("Drafting the essay (Ship 30 for 30 skill)…")
-    draft = await generate(system, user)
+    draft = await generate(system, user, max_tokens=ESSAY_MAX_TOKENS)
     check = check_essay(draft, len(citations))
     log.info("essay_draft", **{k: v for k, v in check.to_dict().items() if k != "problems"}, problems=check.problems)
 
-    if not check.ok:
+    # A revision pass costs a full second generation (minutes on a CPU model), so
+    # locally we only revise for severe failures; cloud revises for any failure.
+    severe = check.word_count < 800 or check.citations < 3 or bool(check.bad_citations) or check.h2 < 2
+    if not check.ok and (severe or not cheap_revision):
         if on_status:
             await on_status("Revising to meet the skill checklist…")
         revision_user = (
@@ -157,7 +162,7 @@ async def write_essay(
             + "\n- ".join(check.problems)
             + "\n\nRewrite the full essay fixing every point. Output Markdown only."
         )
-        revised = await generate(system, revision_user)
+        revised = await generate(system, revision_user, max_tokens=ESSAY_MAX_TOKENS)
         check2 = check_essay(revised, len(citations))
         if len(check2.problems) <= len(check.problems):
             draft, check = revised, check2

@@ -95,6 +95,7 @@ class ProviderInfo(BaseModel):
     reason: str = ""
     latency_ms: float | None = None
     runtime: str = ""
+    warning: str = ""
 
 
 class ConfigOut(BaseModel):
