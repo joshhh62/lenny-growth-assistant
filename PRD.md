@@ -42,7 +42,7 @@ The primary metric is grounding rate because the product's entire value is *trus
 | # | Assumption | Why it matters | If wrong |
 |---|---|---|---|
 | A1 | The [ChatPRD transcript repo](https://github.com/ChatPRD/lennys-podcast-transcripts) is the canonical, complete corpus (303 folders). | It's the only source named in the brief. | Ingestion is source-agnostic: any folder of `transcript.md` files with YAML frontmatter works. |
-| A2 | **The corpus has data-quality issues we must handle, not hide.** Discovery found 31 folders that duplicate another episode under the wrong slug/guest (e.g. `chip-conley/` contains Maggie Crowley's episode; `julian-shapiro/` contains Julie Zhuo's), and frontmatter `guest` values like "Elena Verna 4.0". | Wrong attribution destroys the trust the product exists to create. | We dedupe by `video_id`, derive the guest from the title suffix when it is a person's name, and strip version suffixes. 272 unique episodes remain. Documented in `architecture.md → Ingestion`. |
+| A2 | **The corpus has data-quality issues we must handle, not hide.** Discovery found 31 folders that duplicate another episode under the wrong slug/guest (e.g. `chip-conley/` contains Maggie Crowley's episode; `julian-shapiro/` contains Julie Zhuo's), and frontmatter `guest` values like "Elena Verna 4.0". | Wrong attribution destroys the trust the product exists to create. | We dedupe by `video_id`, derive the guest from the title suffix when it is a person's name, and strip version suffixes. 268 unique episodes remain. Documented in `architecture.md → Ingestion`. |
 | A3 | Users are internal and trusted; there is no auth in v1. A client-generated anonymous user id scopes conversations. | The brief asks for user metadata and sessions, not accounts. | The `users` table and every query already key on `user_id`; adding SSO is a middleware change. |
 | A4 | The demo machine is a CPU-only 16 GB Windows laptop. | Determines model choice (`qwen2.5:7b`), context budget (≤ 8k tokens), and why the local path avoids the Agent SDK's prompt overhead. | Config-only change (`OLLAMA_MODEL`, `RETRIEVAL_TOP_K`). |
 | A5 | "Ship 30 for 30 style" means the principles in the Ultimate Guide (specific topic, curiosity-gap headline, skimmable wheels-and-spokes structure, 1/3/1 rhythm, rate of revelation, one actionable takeaway) — not a reproduction of anyone's voice. | Defines what the skill encodes and what the programmatic checks validate. | The skill is a Markdown file (`SKILL.md`); editing principles doesn't touch code. |
@@ -127,7 +127,7 @@ User toggles **Local ↔ Cloud** in the sidebar (per conversation). If the chose
 | AC9 | Provider switch is config/UI only; readiness reports each provider with an actionable reason | `test_health_and_readiness`, `test_missing_model_gives_actionable_reason` |
 | AC10 | Missing key / Ollama down / model timeout / DB down produce typed, structured errors and never a crash | `test_no_provider_available`, `test_model_timeout_is_reported_and_persisted`, `test_database_down_returns_503` |
 | AC11 | Validation errors and 404s follow one error envelope with a request id | `test_validation_errors_are_structured`, `test_not_found_is_structured` |
-| AC12 | All 303 source folders parse; 3 timestamp formats supported; duplicates collapse to 272 episodes | `test_ingest.py`, ingest run log |
+| AC12 | All 303 source folders parse; 3 timestamp formats supported; duplicates collapse to 268 episodes | `test_ingest.py`, ingest run log |
 | AC13 | `docker compose up --build` on a fresh machine yields a working UI with only the README | Manual, fresh-machine run (README → Verified on) |
 | AC14 | UI usable at 400 px width; keyboard: Enter/Shift+Enter/Esc; live regions for streaming | Manual test plan §3–4 |
 
@@ -138,7 +138,7 @@ User toggles **Local ↔ Cloud** in the sidebar (per conversation). If the chose
 | Phase | Scope | Outcome |
 |---|---|---|
 | **0. Discovery (½ day)** | Read brief; profile the corpus (formats, sizes, duplicates); read Ship 30 guide; confirm Ollama's Anthropic-compatible API and Agent SDK capabilities | Chose: one client library for both providers; two runtimes; hybrid retrieval that never depends on Ollama |
-| **1. Data + retrieval (½ day)** | Parser for 3 transcript formats, timestamp-preserving chunker, dedupe, Postgres schema (FTS + pgvector), background embedding worker, RRF fusion | 272 episodes / 27.9k chunks ingest in ~15 s; lexical search < 10 ms |
+| **1. Data + retrieval (½ day)** | Parser for 3 transcript formats, timestamp-preserving chunker, dedupe, Postgres schema (FTS + pgvector), background embedding worker, RRF fusion | 268 episodes / 27.9k chunks ingest in ~15 s; lexical search < 10 ms |
 | **2. Agent layer (½ day)** | Tool registry, Messages-loop runtime, Agent SDK runtime, deterministic router, Ship 30 skill + checks, artifact sanitizer, orchestration with typed errors | 46 automated tests, fake LLM fixture (incl. the Agent SDK path) |
 | **3. UI (½ day)** | React/Vite three-pane app, SSE streaming, citations, artifact viewer with sandbox, provider toggle, responsive + a11y | Verified with scripted browser runs at 1440 px and 400 px |
 | **4. Ops + docs (½ day)** | Compose, Dockerfiles, `.env.example`, Makefile, smoke test, README/PRD/design/architecture, manual test plan, agent transcripts | Fresh-clone verification, demo video |

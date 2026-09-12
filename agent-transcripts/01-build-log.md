@@ -141,6 +141,20 @@ Made the fake pick the tool name from the request's `tools` list. Re-ran: `tool_
 ### ✓
 Flag sponsor/housekeeping chunks at ingest (`is_ad`, 1,452 of 27,924) and exclude them from both indexes; add an episode-title boost to the lexical score (`ts_rank_cd(chunk) + 0.5·ts_rank(title)`). The PMF query now lands on the PMF episode. Residual: multi-word conceptual queries ("pricing experiments") stay fuzzy until embeddings are present — expected, and why the hybrid design exists.
 
+## 5d. First run on the laptop (Windows, Docker Desktop, host Ollama)
+
+**[me]** Fresh `docker compose up --build`: images built, transcripts cloned, `ingest_complete` in 15 s. Sidebar green; embeddings started.
+
+### ✗ First question timed out after 120 s
+The 7B CPU model was still reading the prompt when the read timeout fired, while the embedding worker competed for the same cores.
+### ✓
+Embedding worker now pauses while any chat turn is in flight; per-request timeout 300 s; local model gets 4 passages instead of 6. Second run: **158.9 s** end-to-end, streamed, 3 citations, persisted.
+
+### ✗ Two "different" sources were the same passage; the model credited Albert Cheng's words to Elena Verna
+(a) Five `guest-20/-30` folders carry a byte-identical transcript under a different video id — a second kind of duplicate my `video_id` dedupe could not see. (b) A small model conflates guests when the question names one.
+### ✓
+(a) Dedupe by transcript body hash as well (303 → 268 episodes). (b) Guest-scoped retrieval: when the question names a guest, search their episodes first and fall back to the corpus only if that yields < 2 passages; system prompt now forbids cross-guest attribution explicitly.
+
 ## 6. Deployment and docs
 
 **[agent]** Dockerfiles, Compose (db/api/web + optional `ollama-in-docker` profile), `.env.example`, Makefile, `scripts/smoke.sh`, auto-ingest on empty DB at startup.

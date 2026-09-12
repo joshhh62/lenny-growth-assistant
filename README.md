@@ -11,7 +11,7 @@ A grounded, conversational assistant over **Lenny's Podcast transcripts** for pr
 
 | Capability | How |
 |---|---|
-| **Grounded Q&A** with follow-ups | Hybrid retrieval (Postgres full-text + pgvector) over 272 episodes / 27.9k timestamped chunks; every claim carries a `[n]` citation that deep-links to YouTube at that second. Says so when the transcripts don't cover a question. |
+| **Grounded Q&A** with follow-ups | Hybrid retrieval (Postgres full-text + pgvector) over 268 episodes / 27.9k timestamped chunks; every claim carries a `[n]` citation that deep-links to YouTube at that second. Says so when the transcripts don't cover a question. |
 | **Local or cloud model, switchable in the UI** | Ollama (`qwen2.5:7b`, default, zero keys) or Anthropic Claude. Documented fallback when one is down. |
 | **Ship 30 for 30 essay skill** | Principles encoded in [`SKILL.md`](backend/app/skills/ship30/SKILL.md); ~1,250 words; programmatic quality checks + revision pass. |
 | **Artifacts** | Markdown docs and complete HTML/CSS pages, sanitized server-side and rendered in a sandboxed viewer next to the chat. |

@@ -296,22 +296,30 @@ class KnowledgeRepo:
         FROM chunks c
         JOIN episodes e ON e.id = c.episode_id,
              {tsquery} q
-        WHERE c.tsv @@ q AND NOT c.is_ad
+        WHERE c.tsv @@ q AND NOT c.is_ad {guest_filter}
         ORDER BY score DESC
         LIMIT :limit
     """
 
-    async def lexical_search(self, query: str, limit: int) -> list[dict]:
+    async def guest_names(self) -> list[str]:
+        rows = (await self.db.execute(text("SELECT DISTINCT guest FROM episodes"))).all()
+        return [r[0] for r in rows if r[0]]
+
+    async def lexical_search(self, query: str, limit: int, guests: list[str] | None = None) -> list[dict]:
         """Postgres full-text search (ts_rank_cd, cover density).
 
         Strict AND semantics first (websearch_to_tsquery); if that under-fills,
         relax to OR over the same terms so partial matches still surface, ranked
         below the strict hits.
         """
+        gf = "AND e.guest = ANY(:guests)" if guests else ""
+        params: dict = {"q": query, "limit": limit}
+        if guests:
+            params["guests"] = guests
         strict = (
             await self.db.execute(
-                text(self._LEXICAL_SQL.format(tsquery="websearch_to_tsquery('english', :q)")),
-                {"q": query, "limit": limit},
+                text(self._LEXICAL_SQL.format(tsquery="websearch_to_tsquery('english', :q)", guest_filter=gf)),
+                params,
             )
         ).mappings().all()
         rows = [dict(r) for r in strict]
@@ -323,8 +331,8 @@ class KnowledgeRepo:
         or_query = " OR ".join(terms)
         relaxed = (
             await self.db.execute(
-                text(self._LEXICAL_SQL.format(tsquery="websearch_to_tsquery('english', :q)")),
-                {"q": or_query, "limit": limit * 2},
+                text(self._LEXICAL_SQL.format(tsquery="websearch_to_tsquery('english', :q)", guest_filter=gf)),
+                {**params, "q": or_query, "limit": limit * 2},
             )
         ).mappings().all()
         seen = {r["id"] for r in rows}
@@ -336,8 +344,12 @@ class KnowledgeRepo:
                 break
         return rows
 
-    async def vector_search(self, embedding: list[float], limit: int) -> list[dict]:
+    async def vector_search(self, embedding: list[float], limit: int, guests: list[str] | None = None) -> list[dict]:
         vec = "[" + ",".join(f"{x:.6f}" for x in embedding) + "]"
+        gf = "AND e.guest = ANY(:guests)" if guests else ""
+        params: dict = {"vec": vec, "limit": limit}
+        if guests:
+            params["guests"] = guests
         rows = (
             await self.db.execute(
                 text(
@@ -346,12 +358,12 @@ class KnowledgeRepo:
                            c.text, e.guest, e.title, e.youtube_url, e.video_id, e.publish_date,
                            1 - (c.embedding <=> CAST(:vec AS vector)) AS score
                     FROM chunks c JOIN episodes e ON e.id = c.episode_id
-                    WHERE c.embedding IS NOT NULL AND NOT c.is_ad
+                    WHERE c.embedding IS NOT NULL AND NOT c.is_ad {gf}
                     ORDER BY c.embedding <=> CAST(:vec AS vector)
                     LIMIT :limit
-                    """
+                    """.replace("{gf}", gf)
                 ),
-                {"vec": vec, "limit": limit},
+                params,
             )
         ).mappings().all()
         return [dict(r) for r in rows]
