@@ -11,6 +11,7 @@ Guarantees:
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 from dataclasses import asdict, dataclass
 
@@ -92,11 +93,33 @@ def rrf_fuse(ranked_lists: dict[str, list[dict]], k: int = 60) -> list[tuple[dic
     return [(rows[cid], score, srcs[cid]) for cid, score in ordered]
 
 
+_guest_cache: dict[str, list[str]] = {}
+
+
 class Retriever:
     def __init__(self, repo: KnowledgeRepo, embedder: OllamaEmbedder | None):
         self.repo = repo
         self.embedder = embedder
         self.settings = get_settings()
+
+    async def _mentioned_guests(self, query: str) -> list[str]:
+        """Guests named in the query ("What does Elena Verna say…" → ["Elena Verna"]).
+
+        Matches the full name, or a distinctive surname (≥ 5 letters) on its own.
+        """
+        if "names" not in _guest_cache:
+            _guest_cache["names"] = await self.repo.guest_names()
+        q = " " + re.sub(r"[^a-z0-9 ]", " ", query.lower()) + " "
+        hits: list[str] = []
+        for name in _guest_cache["names"]:
+            parts = [p for p in re.sub(r"[^a-z0-9 ]", " ", name.lower()).split() if p]
+            if not parts:
+                continue
+            full = " " + " ".join(parts) + " "
+            surname = parts[-1]
+            if full in q or (len(surname) >= 5 and f" {surname} " in q):
+                hits.append(name)
+        return hits
 
     async def search(self, query: str, top_k: int | None = None) -> tuple[list[Citation], dict]:
         """Returns (citations, diagnostics). Never raises for a healthy DB."""
@@ -106,19 +129,40 @@ class Retriever:
         t0 = time.perf_counter()
         diag: dict = {"query": query, "lexical": 0, "vector": 0, "mode": "lexical"}
 
+        # "What does <guest> say about X" → search that guest's episodes first; fall
+        # back to the whole corpus only if they yield too little.
+        guests = await self._mentioned_guests(query)
+        if guests:
+            diag["guests"] = guests
+            picked, sub = await self._search_scoped(query, top_k, pool, guests)
+            if len(picked) >= 2:
+                diag.update(sub)
+                diag["duration_ms"] = round((time.perf_counter() - t0) * 1000, 1)
+                log.info("retrieval", **{k: v for k, v in diag.items() if k != "query"}, query=query[:120])
+                return picked, diag
+
+        picked, sub = await self._search_scoped(query, top_k, pool, None)
+        diag.update(sub)
+        diag["duration_ms"] = round((time.perf_counter() - t0) * 1000, 1)
+        log.info("retrieval", **{k: v for k, v in diag.items() if k != "query"}, query=query[:120])
+        return picked, diag
+
+    async def _search_scoped(self, query: str, top_k: int, pool: int, guests: list[str] | None) -> tuple[list[Citation], dict]:
+        s = self.settings
+        diag: dict = {"lexical": 0, "vector": 0, "mode": "lexical"}
         # NB: one AsyncSession is not safe for concurrent queries, so these run
         # sequentially. Both are single-digit milliseconds on 30k chunks.
         vector_rows: list[dict] = []
         if self.embedder is not None and s.embeddings_enabled:
             try:
                 qvec = await asyncio.wait_for(self.embedder.embed_query(query), timeout=8.0)
-                raw_rows = await self.repo.vector_search(qvec, pool)
+                raw_rows = await self.repo.vector_search(qvec, pool, guests)
                 vector_rows = [r for r in raw_rows if float(r["score"]) >= s.vector_min_similarity]
                 diag["vector_filtered"] = len(raw_rows) - len(vector_rows)
                 diag["mode"] = "hybrid" if vector_rows else "lexical"
             except (EmbeddingUnavailable, asyncio.TimeoutError) as exc:
                 diag["vector_error"] = str(exc)[:200]
-        lexical_rows = await self.repo.lexical_search(query, pool)
+        lexical_rows = await self.repo.lexical_search(query, pool, guests)
         diag["lexical"], diag["vector"] = len(lexical_rows), len(vector_rows)
 
         lists = {"lexical": lexical_rows}
@@ -138,8 +182,5 @@ class Retriever:
             picked.append(_row_to_citation(row, score, sources))
             if len(picked) >= top_k:
                 break
-
         diag["returned"] = len(picked)
-        diag["duration_ms"] = round((time.perf_counter() - t0) * 1000, 1)
-        log.info("retrieval", **{k: v for k, v in diag.items() if k != "query"}, query=query[:120])
         return picked, diag

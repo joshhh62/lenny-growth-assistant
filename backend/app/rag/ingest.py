@@ -30,7 +30,7 @@ log = get_logger("ingest")
 
 # Bump when parsing/chunking changes so `content_hash` no longer matches and
 # every episode is re-ingested on the next run (refresh detection is hash-based).
-PARSER_VERSION = "5"
+PARSER_VERSION = "6"
 AD_RE = re.compile(
     r"brought to you by|this episode is sponsored|today's episode is sponsored|use (?:the )?code \w+|"
     r"lennysnewsletter\.com|subscribe (?:to|and follow)|check (?:it|them) out at [\w./-]+|"
@@ -228,11 +228,31 @@ def canonical_guest(title: str, fallback: str) -> str:
 
 
 def dedupe_episodes(episodes: list[Episode]) -> tuple[list[Episode], list[str]]:
-    """Collapse folders that point at the same YouTube video (source-repo quirk).
+    """Collapse duplicate episodes (two source-repo quirks).
 
-    Winner: the folder whose slug matches the title-derived guest; tie-break on
-    the longer transcript. Returns (kept, dropped_ids).
+    1. Several folders point at the same YouTube `video_id`. Winner: the folder
+       whose slug matches the title-derived guest; tie-break on the longer transcript.
+    2. Several "guest-20"/"guest-30" folders carry a byte-identical *transcript*
+       under a different video id/title (a copy error upstream). We cannot know
+       which metadata is right, so we keep the folder without a version suffix.
+    Returns (kept, dropped_ids).
     """
+    dropped: list[str] = []
+
+    # --- 2. identical transcript bodies ------------------------------------
+    by_body: dict[str, list[Episode]] = {}
+    for ep in episodes:
+        body_hash = hashlib.sha256("\n".join(t.text for t in ep.turns).encode("utf-8")).hexdigest()
+        by_body.setdefault(body_hash, []).append(ep)
+    deduped_body: list[Episode] = []
+    for group in by_body.values():
+        if len(group) > 1 and group[0].turns:
+            group.sort(key=lambda e: (bool(re.search(r"[-_]\d+$", e.id)), len(e.id)))  # unsuffixed slug first
+            dropped.extend(e.id for e in group[1:])
+        deduped_body.append(group[0])
+    episodes = deduped_body
+
+    # --- 1. same video id -----------------------------------------------------
     by_video: dict[str, list[Episode]] = {}
     kept: list[Episode] = []
     for ep in episodes:
@@ -240,7 +260,6 @@ def dedupe_episodes(episodes: list[Episode]) -> tuple[list[Episode], list[str]]:
             by_video.setdefault(ep.video_id, []).append(ep)
         else:
             kept.append(ep)
-    dropped: list[str] = []
     for vid, group in by_video.items():
         if len(group) == 1:
             kept.append(group[0])
