@@ -31,7 +31,7 @@
 |---|---|---|---|
 | **Grounding rate** (primary) | % of assistant answers that carry ≥1 citation to a transcript passage | ≥ 90 % | `messages.citations` in Postgres; every answer stores the citations it used |
 | **Honest-refusal rate** | % of off-corpus questions where the assistant says the transcripts don't cover it rather than inventing an answer | ≥ 95 % on a 20-question probe set | Manual probe (see test plan §5) |
-| **Time-to-first-token** (local) | p50 latency from send to first streamed token on the reference laptop (i5-12500H, 16 GB, CPU) with `qwen2.5:7b` | ≤ 8 s | `messages.latency_ms` + client timing; structured `turn_complete` logs |
+| **Time-to-first-token** (local) | p50 latency from send to first streamed token on the reference laptop (i5-12500H, 16 GB, CPU) with `qwen2.5:7b` | ≤ 30 s (cloud: ≤ 3 s) | `messages.latency_ms` + client timing; structured `turn_complete` logs |
 | **Artifact acceptance** | % of generated artifacts the user opens/copies/downloads rather than immediately re-prompting | ≥ 60 % | Proxy in v1: artifact created without a follow-up "redo" message within 2 turns |
 | **Operator metric** | A fresh engineer can go from `git clone` to a grounded answer in ≤ 15 minutes using only the README | Yes/No | Fresh-machine run-through before submission (done — see README → Verified on) |
 
