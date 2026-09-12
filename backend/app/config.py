@@ -64,6 +64,8 @@ class Settings(BaseSettings):
     transcripts_repo_url: str = "https://github.com/ChatPRD/lennys-podcast-transcripts.git"
     # Limit the number of episodes ingested (0 = all). Useful for quick evals.
     ingest_episode_limit: int = 0
+    # On startup, if the knowledge base is empty, clone + ingest automatically.
+    auto_ingest_on_start: bool = True
     chunk_target_tokens: int = 350
     chunk_overlap_turns: int = 1
     retrieval_top_k: int = 6

@@ -28,6 +28,10 @@ from app.logging_setup import get_logger
 
 log = get_logger("ingest")
 
+# Bump when parsing/chunking changes so `content_hash` no longer matches and
+# every episode is re-ingested on the next run (refresh detection is hash-based).
+PARSER_VERSION = "4"
+
 # Matches "Speaker Name (00:12:34):", "(00:12:34):" and short-form "(12:34):".
 TURN_RE = re.compile(
     r"^(?:(?P<speaker>[^\n(]{1,80}?)\s)?\((?:(?P<h>\d{1,2}):)?(?P<m>\d{1,2}):(?P<s>\d{2})\):\s*$"
@@ -76,7 +80,7 @@ def ensure_transcripts(root: Path, repo_url: str) -> Path:
 
 def parse_transcript(path: Path, rel_path: str) -> Episode:
     raw = path.read_text(encoding="utf-8", errors="replace")
-    content_hash = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+    content_hash = hashlib.sha256((PARSER_VERSION + "\n" + raw).encode("utf-8")).hexdigest()
     meta: dict = {}
     body = raw
     if raw.startswith("---"):
@@ -199,15 +203,21 @@ def chunk_turns(turns: list[Turn], target_tokens: int, overlap_turns: int = 1) -
 
 
 _TITLE_GUEST = re.compile(r"\|\s*([^|(]+?)\s*(?:\(.*\))?\s*$")
+_NAME_LIKE = re.compile(r"^(?:[A-Z][\w.'’\-]*|and|&|\+|de|van|von|da|of)(?:\s+(?:[A-Z][\w.'’\-]*|and|&|\+|de|van|von|da|of)){0,6}$")
 
 
 def canonical_guest(title: str, fallback: str) -> str:
     """The repo's `guest` frontmatter is unreliable for ~30 mis-filed folders;
-    the title suffix ("… | Guest Name (Company)") is consistently correct."""
+    the title suffix ("… | Guest Name (Company)") is correct whenever it looks
+    like a person's name. Titles with a non-name suffix ("… | How Lovable hit
+    $200M ARR") keep the frontmatter guest."""
     m = _TITLE_GUEST.search(title or "")
-    if m and 2 <= len(m.group(1)) <= 60:
-        return m.group(1).strip()
-    return fallback
+    if m:
+        cand = m.group(1).strip()
+        if 2 <= len(cand) <= 60 and _NAME_LIKE.match(cand) and not any(ch.isdigit() for ch in cand):
+            return cand
+    # Frontmatter uses "Elena Verna 4.0" for repeat guests; the number is not part of the name.
+    return re.sub(r"\s+\d+(?:\.\d+)?$", "", fallback).strip() or fallback
 
 
 def dedupe_episodes(episodes: list[Episode]) -> tuple[list[Episode], list[str]]:

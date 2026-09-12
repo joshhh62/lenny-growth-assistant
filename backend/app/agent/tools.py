@@ -158,6 +158,8 @@ async def _store_artifact(ctx: ToolContext, kind: str, title: str, content: str)
     if report.removed_tags or report.stripped_urls or report.removed_css_rules:
         log.warning("artifact_sanitized", kind=kind, **report.to_dict())
     row = await ctx.convo.add_artifact(ctx.session_id, None, kind, title[:200], clean)
+    # Commit now: the UI fetches the artifact as soon as it sees the event, before the turn ends.
+    await ctx.convo.db.commit()
     art = {"id": str(row["id"]), "kind": kind, "title": title[:200], "sanitize_report": report.to_dict()}
     ctx.artifacts.append(art)
     await ctx.events.emit("artifact", **art)
