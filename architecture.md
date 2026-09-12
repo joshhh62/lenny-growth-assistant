@@ -135,7 +135,8 @@ query ──► [embed via Ollama (8 s timeout)] ──► pgvector cosine top-2
                                        Reciprocal Rank Fusion (k=60) ──► diversify (≤2 chunks/episode,
                                        no adjacent chunks) ──► top-k citations + diagnostics
 ```
-- Lexical uses `ts_rank_cd` (cover density) which rewards term proximity — good for "phrase-like" PM questions.
+- Lexical uses `ts_rank_cd` (cover density) which rewards term proximity, plus a boost when the episode *title* matches the query, so an episode about the topic outranks a passing mention.
+- Sponsor reads and housekeeping segments (~5 % of chunks, e.g. "This episode is brought to you by…") are flagged `is_ad` at ingest and excluded from both indexes.
 - The similarity floor is what makes "the transcripts don't cover this" possible: without it, nearest-neighbour search always returns *something*.
 - Diagnostics (`mode`, counts, timings, vector errors) are logged per query as `retrieval` events.
 

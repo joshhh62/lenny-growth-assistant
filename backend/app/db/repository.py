@@ -224,9 +224,9 @@ class KnowledgeRepo:
                 text(
                     """
                     INSERT INTO chunks (episode_id, chunk_index, speaker, start_seconds, end_seconds,
-                        text, token_estimate)
+                        text, token_estimate, is_ad)
                     VALUES (:episode_id, :chunk_index, :speaker, :start_seconds, :end_seconds,
-                        :text, :token_estimate)
+                        :text, :token_estimate, :is_ad)
                     """
                 ),
                 [{"episode_id": ep["id"], **c} for c in chunks],
@@ -287,14 +287,16 @@ class KnowledgeRepo:
         )
 
     # --- search ------------------------------------------------------------
+    # Chunk relevance (cover density) plus a boost when the episode *title*
+    # matches the query — an episode about the topic should outrank a passing mention.
     _LEXICAL_SQL = """
         SELECT c.id, c.episode_id, c.chunk_index, c.speaker, c.start_seconds, c.end_seconds,
                c.text, e.guest, e.title, e.youtube_url, e.video_id, e.publish_date,
-               ts_rank_cd(c.tsv, q, 32) AS score
+               ts_rank_cd(c.tsv, q, 32) + 0.5 * ts_rank(e.title_tsv, q) AS score
         FROM chunks c
         JOIN episodes e ON e.id = c.episode_id,
              {tsquery} q
-        WHERE c.tsv @@ q
+        WHERE c.tsv @@ q AND NOT c.is_ad
         ORDER BY score DESC
         LIMIT :limit
     """
@@ -344,7 +346,7 @@ class KnowledgeRepo:
                            c.text, e.guest, e.title, e.youtube_url, e.video_id, e.publish_date,
                            1 - (c.embedding <=> CAST(:vec AS vector)) AS score
                     FROM chunks c JOIN episodes e ON e.id = c.episode_id
-                    WHERE c.embedding IS NOT NULL
+                    WHERE c.embedding IS NOT NULL AND NOT c.is_ad
                     ORDER BY c.embedding <=> CAST(:vec AS vector)
                     LIMIT :limit
                     """
