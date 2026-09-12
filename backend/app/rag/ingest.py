@@ -30,7 +30,13 @@ log = get_logger("ingest")
 
 # Bump when parsing/chunking changes so `content_hash` no longer matches and
 # every episode is re-ingested on the next run (refresh detection is hash-based).
-PARSER_VERSION = "4"
+PARSER_VERSION = "5"
+AD_RE = re.compile(
+    r"brought to you by|this episode is sponsored|today's episode is sponsored|use (?:the )?code \w+|"
+    r"lennysnewsletter\.com|subscribe (?:to|and follow)|check (?:it|them) out at [\w./-]+|"
+    r"visit [\w.-]+\.com|go to [\w.-]+\.com/\w+",
+    re.I,
+)
 
 # Matches "Speaker Name (00:12:34):", "(00:12:34):" and short-form "(12:34):".
 TURN_RE = re.compile(
@@ -194,6 +200,7 @@ def chunk_turns(turns: list[Turn], target_tokens: int, overlap_turns: int = 1) -
                 "end_seconds": group[-1].start,
                 "text": text,
                 "token_estimate": toks,
+                "is_ad": bool(AD_RE.search(text)),
             }
         )
         if j >= len(units):

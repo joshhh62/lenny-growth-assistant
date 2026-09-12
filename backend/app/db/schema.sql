@@ -83,6 +83,9 @@ CREATE TABLE IF NOT EXISTS chunks (
     end_seconds    INTEGER,
     text           TEXT NOT NULL,
     token_estimate INTEGER NOT NULL,
+    -- Sponsor reads / housekeeping ("This episode is brought to you by…") are kept
+    -- for completeness but excluded from retrieval.
+    is_ad          BOOLEAN NOT NULL DEFAULT false,
     -- Lexical index: always available, no model needed.
     tsv            tsvector GENERATED ALWAYS AS (to_tsvector('english', text)) STORED,
     -- Semantic index: filled in progressively by the embedding worker (nullable).
@@ -90,6 +93,10 @@ CREATE TABLE IF NOT EXISTS chunks (
     UNIQUE (episode_id, chunk_index)
 );
 CREATE INDEX IF NOT EXISTS chunks_tsv_idx ON chunks USING GIN (tsv);
+ALTER TABLE chunks ADD COLUMN IF NOT EXISTS is_ad BOOLEAN NOT NULL DEFAULT false;
+-- Episode titles get their own index so a query matching the episode's topic ranks it up.
+ALTER TABLE episodes ADD COLUMN IF NOT EXISTS title_tsv tsvector GENERATED ALWAYS AS (to_tsvector('english', coalesce(title, ''))) STORED;
+CREATE INDEX IF NOT EXISTS episodes_title_tsv_idx ON episodes USING GIN (title_tsv);
 CREATE INDEX IF NOT EXISTS chunks_episode_idx ON chunks (episode_id);
 CREATE INDEX IF NOT EXISTS chunks_embedding_idx ON chunks
     USING hnsw (embedding vector_cosine_ops) WHERE embedding IS NOT NULL;

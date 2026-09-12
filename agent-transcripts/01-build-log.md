@@ -132,6 +132,15 @@ Ran the real SDK subprocess against the fake Messages API. Streaming and results
 ### ✓
 Made the fake pick the tool name from the request's `tools` list. Re-ran: `tool_call → status → citations → tool_result → token…` in 1.4 s, with our handler executing real retrieval. Turned it into an integration test (`test_agent_sdk_runtime_calls_mcp_tool_and_streams`). 46 tests.
 
+## 5c. Retrieval quality on real questions
+
+**[me]** Asked to see the project running with real outputs.
+
+### ✗ Lexical retrieval surfaced a sponsor read and missed the on-topic episode
+"how do I know if I have product market fit" returned passing mentions, not Todd Jackson's PMF-framework episode; "first PM hire" returned an ad read at t=2s.
+### ✓
+Flag sponsor/housekeeping chunks at ingest (`is_ad`, 1,452 of 27,924) and exclude them from both indexes; add an episode-title boost to the lexical score (`ts_rank_cd(chunk) + 0.5·ts_rank(title)`). The PMF query now lands on the PMF episode. Residual: multi-word conceptual queries ("pricing experiments") stay fuzzy until embeddings are present — expected, and why the hybrid design exists.
+
 ## 6. Deployment and docs
 
 **[agent]** Dockerfiles, Compose (db/api/web + optional `ollama-in-docker` profile), `.env.example`, Makefile, `scripts/smoke.sh`, auto-ingest on empty DB at startup.
