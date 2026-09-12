@@ -142,7 +142,7 @@ class ChatService:
         await ctx.events.emit("citations", items=numbered)
 
         context_block = format_passages([c.to_dict() for c in ctx.citations])
-        messages = self._history_messages(history) + [
+        messages = self._history_messages(history, self.settings.history_budget_for(runtime.provider)) + [  # type: ignore[arg-type]
             {"role": "user", "content": f"{user_text}\n\n{context_block}"}
         ]
         await ctx.events.emit("status", text="Thinking…")

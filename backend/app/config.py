@@ -72,6 +72,9 @@ class Settings(BaseSettings):
     # Fewer passages for the local model: prompt size is the main driver of
     # time-to-first-token on CPU (each passage ≈ 350 tokens).
     ollama_retrieval_top_k: int = 4
+    # Conversation history budget (tokens) sent with each turn; smaller locally.
+    history_budget_tokens: int = 2200
+    ollama_history_budget_tokens: int = 1200
 
     # --- Retrieval -----------------------------------------------------------
     transcripts_dir: str = "./data/transcripts"
@@ -111,6 +114,9 @@ class Settings(BaseSettings):
 
     def tools_enabled_for(self, provider: Provider) -> bool:
         return True if provider == "anthropic" else self.ollama_tools_enabled
+
+    def history_budget_for(self, provider: Provider) -> int:
+        return self.history_budget_tokens if provider == "anthropic" else self.ollama_history_budget_tokens
 
     def retrieval_top_k_for(self, provider: Provider) -> int:
         return self.retrieval_top_k if provider == "anthropic" else self.ollama_retrieval_top_k
