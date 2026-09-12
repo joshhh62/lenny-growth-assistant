@@ -74,7 +74,7 @@ class ChatService:
         await self.db.commit()
 
         ctx = ToolContext(session_id=sid, retriever=self.retriever, convo=self.convo, events=events,
-                          generate=runtime.generate)
+                          generate=runtime.generate, cheap_generation=(status.name == "ollama"))
         decision = route(user_text)
         if decision.intent != Intent.CHAT and _REFERENTIAL.match(decision.topic):
             decision = Route(decision.intent, self._last_user_topic(history) or decision.topic, decision.angle, decision.reason)
@@ -146,7 +146,8 @@ class ChatService:
             {"role": "user", "content": f"{user_text}\n\n{context_block}"}
         ]
         await ctx.events.emit("status", text="Thinking…")
-        return await runtime.chat(system=SYSTEM_PROMPT, messages=messages, ctx=ctx, use_tools=True)
+        use_tools = self.settings.tools_enabled_for(runtime.provider)  # type: ignore[arg-type]
+        return await runtime.chat(system=SYSTEM_PROMPT, messages=messages, ctx=ctx, use_tools=use_tools)
 
     # ----------------------------------------------------------------- essay
     async def _essay(self, ctx: ToolContext, runtime, decision: Route) -> RunResult:
@@ -193,7 +194,7 @@ class ChatService:
             + ARTIFACT_HINT.split("\n")[0]
         )
         await ctx.events.emit("status", text=f"Drafting {kind} artifact…")
-        draft = await runtime.generate(ARTIFACT_SYSTEM, spec, max_tokens=4000)
+        draft = await runtime.generate(ARTIFACT_SYSTEM, spec, max_tokens=3000)
         m = _FENCE.search(draft)
         content = m.group(1) if m else draft
         if kind == "html" and "<html" not in content.lower():

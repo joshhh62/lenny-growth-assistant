@@ -7,6 +7,7 @@ export interface ProviderInfo {
   reason: string;
   latency_ms: number | null;
   runtime: string;
+  warning?: string;
 }
 
 export interface AppConfig {
