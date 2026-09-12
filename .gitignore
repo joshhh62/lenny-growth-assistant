@@ -1,0 +1,19 @@
+# secrets & local config
+.env
+*.env.local
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+# node
+node_modules/
+frontend/dist/
+# data
+data/transcripts/
+backend/data/
+# os / editors
+.DS_Store
+.idea/
+.vscode/
+*.log
