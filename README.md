@@ -70,7 +70,7 @@ All configuration is environment variables — see [`.env.example`](.env.example
 | `LLM_FALLBACK_PROVIDER` | `anthropic` | Used automatically when the chosen provider is unhealthy (empty = no fallback). |
 | `AGENT_RUNTIME` | `auto` | `auto` = Agent SDK for Anthropic, Messages loop for Ollama. Force with `agent_sdk` / `messages_loop`. |
 | `ANTHROPIC_API_KEY` | *(empty)* | Cloud provider. Never committed. |
-| `ANTHROPIC_MODEL` | `claude-sonnet-4-5` | |
+| `ANTHROPIC_MODEL` | `claude-sonnet-5` | Any current Claude model ID (`claude-opus-5`, `claude-haiku-4-5-20251001`, …). |
 | `OLLAMA_BASE_URL` | `http://host.docker.internal:11434` | `http://localhost:11434` when running without Docker. |
 | `OLLAMA_MODEL` | `qwen2.5:7b` | Any Ollama chat model with tool support (`llama3.1:8b`, `qwen2.5:3b`, …). |
 | `OLLAMA_EMBED_MODEL` | `nomic-embed-text` | Embeddings; retrieval degrades to lexical if unavailable. |

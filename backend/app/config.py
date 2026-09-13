@@ -53,7 +53,7 @@ class Settings(BaseSettings):
 
     # Anthropic (cloud)
     anthropic_api_key: str = ""
-    anthropic_model: str = "claude-sonnet-4-5"
+    anthropic_model: str = "claude-sonnet-5"
 
     # Ollama (local)
     ollama_base_url: str = "http://localhost:11434"
