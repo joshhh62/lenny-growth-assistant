@@ -368,23 +368,6 @@ class KnowledgeRepo:
         ).mappings().all()
         return [dict(r) for r in rows]
 
-    async def neighbours(self, chunk_id: int, span: int = 1) -> list[dict]:
-        """Adjacent chunks, used to widen a citation's context window."""
-        rows = (
-            await self.db.execute(
-                text(
-                    """
-                    SELECT n.id, n.chunk_index, n.speaker, n.start_seconds, n.text
-                    FROM chunks c JOIN chunks n ON n.episode_id = c.episode_id
-                    WHERE c.id = :id AND abs(n.chunk_index - c.chunk_index) <= :span
-                    ORDER BY n.chunk_index
-                    """
-                ),
-                {"id": chunk_id, "span": span},
-            )
-        ).mappings().all()
-        return [dict(r) for r in rows]
-
 
 def serialize_row(row: dict) -> dict:
     """Make DB rows JSON-safe (UUID/datetime → str)."""

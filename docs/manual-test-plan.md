@@ -7,7 +7,7 @@ Legend: **P** = must pass before release · **S** = should pass.
 ## 1. First run
 | # | Steps | Expected | Pri |
 |---|---|---|---|
-| 1.1 | Open the app with the backend running and Ollama up | Empty state with headline + 6 prompts; sidebar shows **Local** with a green dot and the model name; knowledge base line shows *272 episodes* | P |
+| 1.1 | Open the app with the backend running and Ollama up | Empty state with headline + 6 prompts; sidebar shows **Local** with a green dot and the model name; knowledge base line shows *268 episodes* | P |
 | 1.2 | Stop Ollama (`taskkill /IM ollama.exe /F` or quit from tray); wait 20 s | Local dot turns red with reason "Ollama unreachable…"; if `ANTHROPIC_API_KEY` is set, note says "will fall back to anthropic"; otherwise an amber banner lists the exact commands | P |
 | 1.3 | Stop the backend | Red banner "Can't reach the API…"; restart backend → banner clears within 20 s without reload | P |
 
