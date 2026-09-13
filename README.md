@@ -1,5 +1,7 @@
 # The Lenny Growth Assistant
 
+[![tests](https://github.com/joshhh62/lenny-growth-assistant/actions/workflows/tests.yml/badge.svg)](https://github.com/joshhh62/lenny-growth-assistant/actions/workflows/tests.yml)
+
 A grounded, conversational assistant over **Lenny's Podcast transcripts** for product and growth teams. Ask a question and get an answer that cites the episode *and the minute*; ask for a Ship 30 for 30 essay or an HTML one-pager and it renders beside the chat. Runs fully local on a laptop with Ollama, or on Claude with one env var.
 
 > Take-home submission for the Forward Deployed Engineer role at Oogway Labs — Joshith Sai Panchumarthi.
