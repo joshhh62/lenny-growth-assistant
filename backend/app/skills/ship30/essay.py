@@ -38,6 +38,7 @@ class EssayCheck:
     bullets: int
     bolds: int
     has_next_steps: bool
+    truncated: bool = False
     problems: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -54,7 +55,14 @@ def check_essay(md: str, n_passages: int) -> EssayCheck:
     bullets = len(re.findall(r"^\s*[-*] ", body, flags=re.M))
     bolds = len(re.findall(r"\*\*[^*\n]+\*\*", body))
     next_steps = bool(re.search(r"^## .*(do this next|next step|takeaway)", body, flags=re.M | re.I))
+    # A generation that hit its token ceiling stops mid-sentence: no closing
+    # punctuation, and often mid-word. Cheap to detect, and the caller must retry
+    # rather than ship a half-essay.
+    tail = body.rstrip()
+    truncated = bool(tail) and not tail.endswith((".", "!", "?", ":", ")", "*", "`", "\"", "'", "—"))
     problems = []
+    if truncated:
+        problems.append(f"output truncated mid-sentence (ends: …{tail[-40:]!r})")
     if not 1000 <= words <= 1500:
         problems.append(f"word count {words} outside 1000-1500")
     if h1 != 1:
@@ -73,7 +81,8 @@ def check_essay(md: str, n_passages: int) -> EssayCheck:
         problems.append("missing 'Do this next' section")
     if re.search(r"in today'?s|in this essay|as we all know", body[:400], flags=re.I):
         problems.append("weak opener")
-    return EssayCheck(not problems, words, h1, h2, len(cites), bad, bullets, bolds, next_steps, problems)
+    return EssayCheck(not problems, words, h1, h2, len(cites), bad, bullets, bolds, next_steps,
+                      truncated, problems)
 
 
 def _expand_queries(topic: str, angle: str) -> list[str]:
@@ -87,9 +96,13 @@ def _expand_queries(topic: str, angle: str) -> list[str]:
     return variants.get(angle, variants["actionable"])
 
 
-def sources_block(citations: list[Citation]) -> str:
+def sources_block(citations: list[Citation], used: set[int] | None = None) -> str:
+    """Render the Sources list. `used` limits it to the passage numbers the essay
+    actually cites — listing passages the text never references reads as padding."""
     lines = ["### Sources"]
     for i, c in enumerate(citations, 1):
+        if used is not None and i not in used:
+            continue
         ts = c.timestamp_url or c.youtube_url or ""
         lines.append(f"[{i}] {c.guest} — {c.title}" + (f" ([{_fmt(c.start_seconds)}]({ts}))" if ts else ""))
     return "\n".join(lines)
@@ -104,7 +117,13 @@ def _fmt(seconds: int | None) -> str:
 
 
 Generate = Callable[..., Awaitable[str]]  # (system, user, *, max_tokens) -> markdown
-ESSAY_MAX_TOKENS = 2200  # ~1,400 words + headings
+
+# A 1,250-word essay is ~1,900 tokens of prose, but headings, bullets, markdown
+# syntax and (on reasoning models) thinking tokens all draw on the same budget.
+# Sized generously for cloud; the local model gets a tighter cap because every
+# output token costs ~8 s on CPU.
+ESSAY_MAX_TOKENS = 8000
+ESSAY_MAX_TOKENS_LOCAL = 2600
 
 
 async def write_essay(
@@ -146,13 +165,20 @@ async def write_essay(
     )
     if on_status:
         await on_status("Drafting the essay (Ship 30 for 30 skill)…")
-    draft = await generate(system, user, max_tokens=ESSAY_MAX_TOKENS)
+    budget = ESSAY_MAX_TOKENS_LOCAL if cheap_revision else ESSAY_MAX_TOKENS
+    draft = await generate(system, user, max_tokens=budget)
     check = check_essay(draft, len(citations))
     log.info("essay_draft", **{k: v for k, v in check.to_dict().items() if k != "problems"}, problems=check.problems)
 
     # A revision pass costs a full second generation (minutes on a CPU model), so
     # locally we only revise for severe failures; cloud revises for any failure.
-    severe = check.word_count < 800 or check.citations < 3 or bool(check.bad_citations) or check.h2 < 2
+    severe = (
+        check.truncated
+        or check.word_count < 800
+        or check.citations < 3
+        or bool(check.bad_citations)
+        or check.h2 < 2
+    )
     if not check.ok and (severe or not cheap_revision):
         if on_status:
             await on_status("Revising to meet the skill checklist…")
@@ -162,12 +188,20 @@ async def write_essay(
             + "\n- ".join(check.problems)
             + "\n\nRewrite the full essay fixing every point. Output Markdown only."
         )
-        revised = await generate(system, revision_user, max_tokens=ESSAY_MAX_TOKENS)
+        if check.truncated:
+            revision_user += (
+                "\n\nCRITICAL: your previous output was cut off. Keep the essay within "
+                "1,150-1,350 words so it finishes, and make sure it ends with the "
+                "'Do this next' section and the TL;DR."
+            )
+        revised = await generate(system, revision_user, max_tokens=budget)
         check2 = check_essay(revised, len(citations))
         if len(check2.problems) <= len(check.problems):
             draft, check = revised, check2
         log.info("essay_revised", problems=check.problems)
 
     draft = re.split(r"^###?\s*Sources\s*$", draft, flags=re.M | re.I)[0].rstrip()
-    essay = f"{draft}\n\n{sources_block(citations)}\n"
-    return essay, citations, check
+    used = {int(n) for n in re.findall(r"\[(\d+)\]", draft)}
+    essay = f"{draft}\n\n{sources_block(citations, used)}\n"
+    cited = [c for i, c in enumerate(citations, 1) if i in used] or citations
+    return essay, cited, check

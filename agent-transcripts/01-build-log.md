@@ -155,6 +155,22 @@ Embedding worker now pauses while any chat turn is in flight; per-request timeou
 ### ✓
 (a) Dedupe by transcript body hash as well (303 → 268 episodes). (b) Guest-scoped retrieval: when the question names a guest, search their episodes first and fall back to the corpus only if that yields < 2 passages; system prompt now forbids cross-guest attribution explicitly.
 
+## 5e. Cloud provider live (13 Sep)
+
+**[me]** Bought $5 of Anthropic credits, created a scoped 30-day key, set `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL` in `.env`. Cloud toggle green; first grounded answer in ~5 s vs ~160 s locally. Embeddings had finished overnight — knowledge base at 100 %, retrieval now hybrid.
+
+### ✗ Default cloud model id was stale
+Config shipped `claude-sonnet-4-5`; the current id is `claude-sonnet-5`. Would have failed the first cloud call with `model_not_found`.
+### ✓
+Checked the live model list in the docs, updated the default and `.env.example` (with the other current ids listed as alternatives).
+
+### ✗ The first cloud essay was truncated mid-word
+It ended `"…defending and re-earning it, on a sh"` — no "Do this next", no TL;DR. `ESSAY_MAX_TOKENS` was 2,200, sized for the local model; on a reasoning model that budget is shared with thinking tokens. Worse, the quality checker never noticed: it validated word count, headings and citations but not *whether the text ended in a sentence*. The revision pass fired and produced an equally truncated draft.
+### ✓
+Three changes: (a) provider-aware budgets — 8,000 tokens for cloud, 2,600 locally, and the same for artifacts, which had the same 3,000-token ceiling; (b) truncation detection in `check_essay` (no terminal punctuation ⇒ `truncated`), treated as a *severe* failure so it always retries, with an explicit length instruction added to the retry; (c) the Sources block now lists only the passages the essay actually cites — the first draft listed 7 while citing 5. Regression tests for all three.
+
+**Lesson recorded:** a quality checker that only measures what's *present* will happily pass a document that stops halfway. Check the end state, not just the parts.
+
 ## 6. Deployment and docs
 
 **[agent]** Dockerfiles, Compose (db/api/web + optional `ollama-in-docker` profile), `.env.example`, Makefile, `scripts/smoke.sh`, auto-ingest on empty DB at startup.

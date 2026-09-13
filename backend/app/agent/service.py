@@ -194,7 +194,10 @@ class ChatService:
             + ARTIFACT_HINT.split("\n")[0]
         )
         await ctx.events.emit("status", text=f"Drafting {kind} artifact…")
-        draft = await runtime.generate(ARTIFACT_SYSTEM, spec, max_tokens=3000)
+        draft = await runtime.generate(
+            ARTIFACT_SYSTEM, spec,
+            max_tokens=self.settings.artifact_tokens_for(runtime.provider),  # type: ignore[arg-type]
+        )
         m = _FENCE.search(draft)
         content = m.group(1) if m else draft
         if kind == "html" and "<html" not in content.lower():
