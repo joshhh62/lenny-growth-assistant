@@ -68,6 +68,7 @@ The primary metric is grounding rate because the product's entire value is *trus
 - **Voice, multi-modal, image artifacts** — not asked for; the viewer's allow-list deliberately excludes remote images.
 - **OpenAI provider, Pi agent** — see A7.
 - **Full evaluation harness (RAGAS-style)** — replaced with a 20-question manual probe set and unit tests on retrieval; a proper eval set is the first thing I'd build in v1.1.
+- **Concurrent generation across sessions** — the server already supports it (a turn per task, a database session per turn), but on the default single-model CPU deployment Ollama serialises inference, so parallel turns queue and both finish later than one. The UI serialises them visibly instead of showing two spinners with one stuck. Worth lifting for a GPU or cloud-only deployment; it is a frontend change of about thirty lines, recorded in [design.md §8](design.md).
 
 ### 1.5 Risks and trade-offs
 
