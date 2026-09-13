@@ -68,7 +68,7 @@ every state below was verified in a browser at 1440 px and 400 px.
 | **Done** | Trace collapses; meta line shows *local · qwen2.5:7b · 4.2 s*; Sources block lists cited passages (3-line clamp, "Show passage" expands). Clicking a chip highlights its source. |
 | **Tool call** | Trace line with the tool name in mono and the query in quotes: `search_transcripts “activation metric”`. |
 | **Artifact created** | A chip under the message (kind badge: MARKDOWN / HTML); the panel slides open with the artifact selected. Esc or ✕ closes; the chip reopens. |
-| **Fallback used** | Header pill turns amber: *Cloud · claude-sonnet-4-5 · fallback*; toast explains: "Ollama unreachable…; answered with Claude instead." |
+| **Fallback used** | Header pill turns amber: *Cloud · claude-sonnet-5 · fallback*; toast explains: "Ollama unreachable…; answered with Claude instead." |
 | **Provider unavailable** | Sidebar toggle shows a red dot and the reason under it ("Model 'qwen2.5:7b' not pulled. Run: ollama pull qwen2.5:7b"); the other provider still works. |
 | **No provider at all** | Amber banner above the chat with exact commands to fix; sending yields a typed error message in the thread. |
 | **API down** | Red banner: "Can't reach the API. Start the backend…" — polls every 20 s and clears itself. |
