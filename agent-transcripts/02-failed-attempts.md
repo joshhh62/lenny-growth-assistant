@@ -43,8 +43,9 @@ Every ✗ from the build log, grouped, with the lesson. Kept deliberately: the b
 | One `max_tokens` for essays across providers | 2,200 fit the local model; on a cloud reasoning model the budget is shared with thinking, so the essay stopped mid-word | Provider-aware budgets (8,000 cloud / 2,600 local), same for artifacts | Token ceilings are per-model, not per-feature |
 | Checker validated only what was present | Word count, headings and citations all "passed" on a half-written essay | Detect no-terminal-punctuation as truncation; treat as severe and retry | Validate the end state, not just the parts |
 
-## Process (2)
+## Process (3)
 | Attempt | Why it failed | Fix | Lesson |
 |---|---|---|---|
 | `pkill -f "uvicorn app.main"` | Matched the invoking shell → killed itself (exit 144) | `mai[n]` trick / detached launcher | Know your tools' failure modes |
 | Verify via description ("it works") | Not verification | Tests, scripted browser runs, smoke script | The agent's confidence is not evidence |
+| Install the latest `claude` CLI in CI so the Agent SDK test runs there | The SDK shells out to that binary. A newer build than the one used in development wired the in-process MCP server differently, so the model was offered no tools: `assert [] == ['search_transcripts']`. 50/51 passed; the build went red on a third-party version bump, not on our code | CI omits the CLI and the test skips itself with a reason; it still runs locally against a known version | Don't gate a build on an unpinned external binary. A test that can only fail because someone else shipped a release is not testing your system |
