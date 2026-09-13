@@ -116,7 +116,7 @@ export function ArtifactPanel({
         )}
         {active && view === "preview" && active.kind === "markdown" && (
           <div className="artifact-md">
-            <Markdown text={active.content} />
+            <Markdown text={active.content} citations={active.citations ?? []} />
           </div>
         )}
       </div>

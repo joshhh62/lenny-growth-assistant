@@ -176,8 +176,18 @@ class ConversationRepo:
         return dict(row)
 
     async def get_artifact(self, artifact_id: uuid.UUID) -> dict | None:
+        # Citations live on the assistant message that produced the artifact, but
+        # the viewer renders the artifact on its own — without them the inline
+        # [n] chips have nothing to link to. Carry them along.
         row = (
-            await self.db.execute(text("SELECT * FROM artifacts WHERE id = :id"), {"id": artifact_id})
+            await self.db.execute(
+                text(
+                    "SELECT a.*, COALESCE(m.citations, '[]'::jsonb) AS citations "
+                    "FROM artifacts a LEFT JOIN messages m ON m.id = a.message_id "
+                    "WHERE a.id = :id"
+                ),
+                {"id": artifact_id},
+            )
         ).mappings().one_or_none()
         return dict(row) if row else None
 
