@@ -32,7 +32,7 @@ Where a decision was a trade-off, the alternative and the reason are stated.
 ┌───────────▼───────────┐        ┌─────────────▼───────────┐   ┌────────────────┐
 │ PostgreSQL 16         │        │ Ollama (host machine)    │   │ Anthropic API   │
 │ + pgvector            │        │ /v1/messages, /api/embed │   │ (optional)      │
-│ sessions, messages,   │        │ qwen2.5:7b               │   │ claude-sonnet   │
+│ sessions, messages,   │        │ qwen2.5:7b               │   │ claude-sonnet-5 │
 │ artifacts, episodes,  │        │ nomic-embed-text         │   └────────────────┘
 │ chunks (tsv + vector) │        └─────────────────────────┘
 └───────────────────────┘
@@ -119,7 +119,7 @@ Base URL `http://localhost:8000`. OpenAPI at `/docs`. All errors share one envel
 2. **Parse** each `episodes/<slug>/transcript.md`: YAML frontmatter + body. Three body formats exist in the corpus and all are supported:
    `Speaker (00:12:34):` / `(12:34):` continuation lines, `Speaker:` with no timestamps, and `[00:12:34] Speaker: text` inline.
 3. **Dedupe**: 33 `video_id`s appear under two folders (a source-repo defect). The folder whose slug matches the title-derived guest wins; the other is dropped. `guest` is taken from the title suffix when it looks like a person's name, else frontmatter with "N.0" version suffixes stripped. Result: **303 folders → 268 episodes**.
-4. **Chunk** by speaker turn: consecutive turns are packed to ≈350 tokens with a one-turn overlap; over-long turns split on sentence boundaries. Each chunk keeps `speaker`, `start_seconds`, `end_seconds` → **27,924 chunks**.
+4. **Chunk** by speaker turn: consecutive turns are packed to ≈350 tokens with a one-turn overlap; over-long turns split on sentence boundaries. Each chunk keeps `speaker`, `start_seconds`, `end_seconds` → **27,454 chunks**.
 5. **Upsert** episodes + chunks; `tsv` is a generated column so lexical search is live immediately. Ingest of the full corpus takes ~15 s.
 6. **Embed** in the background (`EmbeddingWorker`): batches of 32 through Ollama's `/api/embed` (`nomic-embed-text`, with `search_document:` / `search_query:` prefixes). Pauses with backoff when Ollama is unreachable; resumes automatically. ~20–40 min for the full corpus on a CPU laptop; retrieval is hybrid for whatever is embedded so far.
 

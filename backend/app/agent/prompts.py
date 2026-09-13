@@ -42,12 +42,6 @@ The user wants a rendered artifact. Call `create_artifact` exactly once with the
 Ground the content in the passages and keep the [n] citations inside the artifact where claims are made.
 """
 
-ESSAY_HINT = """
-The user wants a Ship 30 for 30 style essay. Call `write_ship30_essay` with a precise topic
-(and the angle if the user implied one). Then summarise the essay's hook and takeaway in 2-3 sentences.
-"""
-
-
 def format_passages(citations: list[dict]) -> str:
     if not citations:
         return NO_CONTEXT_NOTE
@@ -67,12 +61,3 @@ def _fmt(seconds: int) -> str:
     m, s = divmod(rem, 60)
     return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
 
-
-def render_history(history: list[dict], max_turns: int = 12) -> str:
-    """Flatten prior turns for runtimes that take a single prompt (Agent SDK)."""
-    turns = history[-max_turns:]
-    out = []
-    for m in turns:
-        role = "User" if m["role"] == "user" else "Assistant"
-        out.append(f"{role}: {m['content']}")
-    return "\n\n".join(out)

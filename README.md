@@ -11,11 +11,11 @@ A grounded, conversational assistant over **Lenny's Podcast transcripts** for pr
 
 | Capability | How |
 |---|---|
-| **Grounded Q&A** with follow-ups | Hybrid retrieval (Postgres full-text + pgvector) over 268 episodes / 27.9k timestamped chunks; every claim carries a `[n]` citation that deep-links to YouTube at that second. Says so when the transcripts don't cover a question. |
+| **Grounded Q&A** with follow-ups | Hybrid retrieval (Postgres full-text + pgvector) over 268 episodes / 27.5k timestamped chunks; every claim carries a `[n]` citation that deep-links to YouTube at that second. Says so when the transcripts don't cover a question. |
 | **Local or cloud model, switchable in the UI** | Ollama (`qwen2.5:7b`, default, zero keys) or Anthropic Claude. Documented fallback when one is down. |
 | **Ship 30 for 30 essay skill** | Principles encoded in [`SKILL.md`](backend/app/skills/ship30/SKILL.md); ~1,250 words; programmatic quality checks + revision pass. |
 | **Artifacts** | Markdown docs and complete HTML/CSS pages, sanitized server-side and rendered in a sandboxed viewer next to the chat. |
-| **Operable** | `docker compose up`, structured JSON logs, `/health/ready` that names what's wrong, typed errors, 46 automated tests + a smoke script. |
+| **Operable** | `docker compose up`, structured JSON logs, `/health/ready` that names what's wrong, typed errors, 51 automated tests + a smoke script. |
 
 ## Architecture in one paragraph
 
@@ -108,12 +108,12 @@ cd ../frontend && npm ci && npm run dev      # http://localhost:5173 (proxies /a
 
 ```bash
 cd backend
-python -m pytest -q                       # 46 tests: unit + integration (needs Postgres; creates lenny_test)
+python -m pytest -q                       # 51 tests: unit + integration (needs Postgres; creates lenny_test)
 python -m pytest -q tests/test_units.py tests/test_ingest.py   # unit only, no database
 ```
-Or inside Compose: `make test-integration`.
+Or inside Compose: `make test-integration`. The same suite runs on every push in [GitHub Actions](.github/workflows/tests.yml), together with a frontend type-check and build.
 
-The integration tests run against a real Postgres and an **in-process fake of the Anthropic Messages API** (`tests/fake_llm.py`) that also fakes Ollama's `/api/tags` and `/api/embed` — so routing, tool calling, streaming, persistence, sanitisation and every failure mode are tested deterministically without models or network. Coverage map is in [PRD → Acceptance criteria](PRD.md#3-acceptance-criteria); the human checklist is [docs/manual-test-plan.md](docs/manual-test-plan.md).
+The integration tests run against a real Postgres and an **in-process fake of the Anthropic Messages API** (`tests/fake_llm.py`) that also fakes Ollama's `/api/tags` and `/api/embed` — so routing, tool calling, streaming, persistence, sanitisation and every failure mode are tested deterministically without models or network. One test drives the real Claude Agent SDK subprocess and needs the `claude` CLI (`npm i -g @anthropic-ai/claude-code`); without it that single test skips and the other 50 still run. Coverage map is in [PRD → Acceptance criteria](PRD.md#3-acceptance-criteria); the human checklist is [docs/manual-test-plan.md](docs/manual-test-plan.md).
 
 `scripts/smoke.sh [API_BASE]` exercises a running stack end-to-end (readiness → ingest → search → streamed chat → persistence → error envelope).
 
@@ -167,7 +167,7 @@ PRD.md · architecture.md · design.md · docs/manual-test-plan.md · agent-tran
 
 ## Verified on
 - Windows 11, i5-12500H, 16 GB, no dGPU — Docker Desktop (WSL 2) + host Ollama `qwen2.5:7b` — see the demo video.
-- Ubuntu 24.04 container (CI-like): full test suite, 46/46 passing in ~15 s.
+- Ubuntu 24.04 container (CI-like): full test suite, 51/51 passing in ~15 s.
 
 ## Licence & credits
-Transcripts © Lenny Rachitsky, archived by [ChatPRD/lennys-podcast-transcripts](https://github.com/ChatPRD/lennys-podcast-transcripts). Ship 30 for 30 principles from the [Ultimate Guide](https://www.ship30for30.com/post/how-to-start-writing-online-the-ship-30-for-30-ultimate-guide). Code MIT.
+Transcripts © Lenny Rachitsky, archived by [ChatPRD/lennys-podcast-transcripts](https://github.com/ChatPRD/lennys-podcast-transcripts). Ship 30 for 30 principles from the [Ultimate Guide](https://www.ship30for30.com/post/how-to-start-writing-online-the-ship-30-for-30-ultimate-guide). Code is [MIT](LICENSE).
