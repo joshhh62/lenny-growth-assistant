@@ -31,7 +31,7 @@
 |---|---|---|---|
 | **Grounding rate** (primary) | % of assistant answers that carry ≥1 citation to a transcript passage | ≥ 90 % | `messages.citations` in Postgres; every answer stores the citations it used |
 | **Honest-refusal rate** | % of off-corpus questions where the assistant says the transcripts don't cover it rather than inventing an answer | ≥ 95 % on a 20-question probe set | Manual probe (see test plan §5) |
-| **Time-to-first-token** (local) | p50 latency from send to first streamed token on the reference laptop (i5-12500H, 16 GB, CPU) with `qwen2.5:7b` | ≤ 30 s (cloud: ≤ 3 s) | `messages.latency_ms` + client timing; structured `turn_complete` logs |
+| **Time-to-first-token** (local) | p50 latency from send to first streamed token on the reference laptop (i5-12500H, 16 GB, CPU-only) with `qwen2.5:7b`, model resident | ≤ 60 s (cloud: ≤ 3 s) | `messages.latency_ms` + client timing; structured `turn_complete` logs |
 | **Artifact acceptance** | % of generated artifacts the user opens/copies/downloads rather than immediately re-prompting | ≥ 60 % | Proxy in v1: artifact created without a follow-up "redo" message within 2 turns |
 | **Operator metric** | A fresh engineer can go from `git clone` to a grounded answer in ≤ 15 minutes using only the README | Yes/No | Fresh-machine run-through before submission (done — see README → Verified on) |
 
@@ -139,7 +139,7 @@ User toggles **Local ↔ Cloud** in the sidebar (per conversation). If the chose
 |---|---|---|
 | **0. Discovery (½ day)** | Read brief; profile the corpus (formats, sizes, duplicates); read Ship 30 guide; confirm Ollama's Anthropic-compatible API and Agent SDK capabilities | Chose: one client library for both providers; two runtimes; hybrid retrieval that never depends on Ollama |
 | **1. Data + retrieval (½ day)** | Parser for 3 transcript formats, timestamp-preserving chunker, dedupe, Postgres schema (FTS + pgvector), background embedding worker, RRF fusion | 268 episodes / 27.5k chunks ingest in ~15 s; lexical search < 10 ms |
-| **2. Agent layer (½ day)** | Tool registry, Messages-loop runtime, Agent SDK runtime, deterministic router, Ship 30 skill + checks, artifact sanitizer, orchestration with typed errors | 51 automated tests, fake LLM fixture (incl. the Agent SDK path) |
+| **2. Agent layer (½ day)** | Tool registry, Messages-loop runtime, Agent SDK runtime, deterministic router, Ship 30 skill + checks, artifact sanitizer, orchestration with typed errors | 52 automated tests, fake LLM fixture (incl. the Agent SDK path) |
 | **3. UI (½ day)** | React/Vite three-pane app, SSE streaming, citations, artifact viewer with sandbox, provider toggle, responsive + a11y | Verified with scripted browser runs at 1440 px and 400 px |
 | **4. Ops + docs (½ day)** | Compose, Dockerfiles, `.env.example`, Makefile, smoke test, README/PRD/design/architecture, manual test plan, agent transcripts | Fresh-clone verification, demo video |
 

@@ -22,11 +22,25 @@ export default function App() {
   const isNarrow = useNarrow();
   const [sidebarOpen, setSidebarOpen] = useState(() => !window.matchMedia("(max-width: 900px)").matches);
   const [provider, setProvider] = useState<Provider>("ollama");
-  const [streaming, setStreaming] = useState(false);
+  // A turn belongs to the session that started it, not to whatever is on screen.
+  // The user can switch away mid-answer and come back; `live` holds the partial
+  // answer so it can be re-attached, and the id says which session owns it.
+  const [streamingSid, setStreamingSid] = useState<string | null>(null);
+  const live = useRef<{ sid: string; tempId: string; content: string; citations: Citation[]; artifactIds: string[] } | null>(null);
+  const activeIdRef = useRef<string | null>(null);
   const [trace, setTrace] = useState<Trace[]>([]);
   const [liveProvider, setLiveProvider] = useState<LiveProvider | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const abortRef = useRef<AbortController | null>(null);
+
+  // Only one turn runs at a time (`busy`), but the composer should look busy
+  // only in the session actually generating (`streaming`).
+  const busy = streamingSid !== null;
+  const streaming = busy && streamingSid === (active?.id ?? null);
+
+  useEffect(() => {
+    activeIdRef.current = active?.id ?? null;
+  }, [active]);
 
   const toast = useCallback((kind: Toast["kind"], text: string) => {
     const id = Date.now() + Math.random();
@@ -77,7 +91,21 @@ export default function App() {
       const d = await api.getSession(id);
       setActive(d.session);
       setProvider(d.session.provider);
-      setMessages(d.messages);
+      // If this session is still generating, the assistant's reply isn't in the
+      // database yet — re-attach the partial answer we've been accumulating so
+      // the user doesn't come back to a question with no response.
+      const l = live.current;
+      if (l && l.sid === id) {
+        const partial: Message = {
+          id: l.tempId, session_id: id, role: "assistant", content: l.content, citations: l.citations,
+          tool_calls: [], provider: null, model: null, runtime: null, latency_ms: null,
+          input_tokens: null, output_tokens: null, error: null, created_at: new Date().toISOString(),
+          streaming: true, artifact_ids: l.artifactIds,
+        };
+        setMessages([...d.messages.filter((m) => m.role !== "assistant" || m.id !== l.tempId), partial]);
+      } else {
+        setMessages(d.messages);
+      }
       setArtifacts(d.artifacts);
       setActiveArtifact(d.artifacts[0]?.id ?? null);
       setLiveProvider(null);
@@ -140,13 +168,14 @@ export default function App() {
   // --- send & stream --------------------------------------------------------
   const send = useCallback(async (text: string, target?: Session) => {
     const sess = target ?? active;
-    if (!sess || streaming) return;
+    if (!sess || busy) return;
     const sid = sess.id;
     const tempUser: Message = { id: "tmp-u-" + Date.now(), session_id: sid, role: "user", content: text, citations: [], tool_calls: [], provider: null, model: null, runtime: null, latency_ms: null, input_tokens: null, output_tokens: null, error: null, created_at: new Date().toISOString() };
     const tempId = "tmp-a-" + Date.now();
     const tempAsst: Message = { ...tempUser, id: tempId, role: "assistant", content: "", streaming: true, artifact_ids: [] };
     setMessages((m) => [...m, tempUser, tempAsst]);
-    setStreaming(true);
+    live.current = { sid, tempId, content: "", citations: [], artifactIds: [] };
+    setStreamingSid(sid);
     setTrace([]);
     setLiveProvider(null);
     if (messages.length === 0 || target) {
@@ -158,59 +187,73 @@ export default function App() {
     let cites: Citation[] = [];
     const ac = new AbortController();
     abortRef.current = ac;
-    const patch = (fn: (m: Message) => Message) => setMessages((list) => list.map((m) => (m.id === tempId ? fn(m) : m)));
+    // Guard every UI write: if the user has navigated to another session, the
+    // temp message isn't on screen and these updates must not touch it.
+    const onScreen = () => activeIdRef.current === sid;
+    const patch = (fn: (m: Message) => Message) => {
+      if (!onScreen()) return;
+      setMessages((list) => list.map((m) => (m.id === tempId ? fn(m) : m)));
+    };
 
     const onEvent = (e: StreamEvent) => {
       switch (e.type) {
         case "provider":
-          setLiveProvider(e);
+          if (onScreen()) setLiveProvider(e);
           if (e.fallback_used) toast("warn", `${e.reason}; answered with ${e.provider === "ollama" ? "the local model" : "Claude"} instead.`);
           break;
         case "status":
-          setTrace((t) => [...t.map((x) => ({ ...x, done: true })), { text: e.text }]);
+          if (onScreen()) setTrace((t) => [...t.map((x) => ({ ...x, done: true })), { text: e.text }]);
           break;
         case "tool_call":
-          setTrace((t) => [...t.map((x) => ({ ...x, done: true })), { text: summariseInput(e.input), tool: e.name }]);
+          if (onScreen()) setTrace((t) => [...t.map((x) => ({ ...x, done: true })), { text: summariseInput(e.input), tool: e.name }]);
           break;
         case "tool_result":
-          setTrace((t) => t.map((x) => ({ ...x, done: true })));
+          if (onScreen()) setTrace((t) => t.map((x) => ({ ...x, done: true })));
           break;
         case "token":
-          setTrace((t) => t.map((x) => ({ ...x, done: true })));
+          if (live.current) live.current.content += e.text;
+          if (onScreen()) setTrace((t) => t.map((x) => ({ ...x, done: true })));
           patch((m) => ({ ...m, content: m.content + e.text }));
           break;
         case "citations":
           cites = e.items;
+          if (live.current) live.current.citations = e.items;
           patch((m) => ({ ...m, citations: e.items }));
           break;
         case "artifact": {
           const a: ArtifactSummary = { id: e.id, session_id: sid, message_id: null, kind: e.kind, title: e.title, created_at: new Date().toISOString() };
-          setArtifacts((l) => [a, ...l]);
-          setActiveArtifact(e.id);
-          setArtifactOpen(true);
+          if (live.current) live.current.artifactIds = [...live.current.artifactIds, e.id];
+          if (onScreen()) {
+            setArtifacts((l) => [a, ...l]);
+            setActiveArtifact(e.id);
+            setArtifactOpen(true);
+          }
           patch((m) => ({ ...m, artifact_ids: [...(m.artifact_ids ?? []), e.id] }));
           break;
         }
         case "done":
-          setTrace([]);
+          if (onScreen()) {
+            setTrace([]);
+            setArtifacts((l) => l.map((a) => (e.artifacts.includes(a.id) ? { ...a, message_id: e.message_id } : a)));
+          }
           patch((m) => ({ ...m, id: e.message_id, streaming: false, latency_ms: e.latency_ms, citations: cites, provider: liveProviderRef.current?.provider ?? m.provider, model: liveProviderRef.current?.model ?? m.model }));
-          setArtifacts((l) => l.map((a) => (e.artifacts.includes(a.id) ? { ...a, message_id: e.message_id } : a)));
           break;
         case "error":
-          setTrace([]);
+          if (onScreen()) setTrace([]);
           patch((m) => ({ ...m, streaming: false, error: e.code, content: m.content || `⚠️ ${e.message}` }));
           toast(e.retryable ? "warn" : "err", e.message);
           break;
       }
     };
     await streamMessage(sid, text, onEvent, ac.signal);
-    setStreaming(false);
-    setTrace([]);
-    abortRef.current = null;
     patch((m) => ({ ...m, streaming: false }));
+    live.current = null;
+    setStreamingSid(null);
+    abortRef.current = null;
+    if (activeIdRef.current === sid) setTrace([]);
     loadSessions();
     loadConfig();
-  }, [active, streaming, messages.length, toast, loadSessions, loadConfig]);
+  }, [active, busy, messages.length, toast, loadSessions, loadConfig]);
 
   const liveProviderRef = useRef<LiveProvider | null>(null);
   useEffect(() => {
@@ -247,7 +290,7 @@ export default function App() {
         activeId={active?.id ?? null}
         config={config}
         provider={provider}
-        busy={streaming}
+        busy={busy}
         onNew={newSession}
         onSelect={openSession}
         onDelete={deleteSession}

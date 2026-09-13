@@ -8,16 +8,16 @@ Final run, after the truncation and sanitizer fixes:
 
 ```
 $ python -m pytest -q
-...................................................                      [100%]
-51 passed in 13.89s
+....................................................                     [100%]
+52 passed in 20.04s
 ```
 
-Six consecutive runs after the shutdown fix (at 45 tests): 13.0 s, 12.7 s, 15.8 s, 15.5 s, 12.8 s, 15.5 s — all green. Three consecutive runs of the final 51: 16.9 s, 14.0 s, 13.9 s — all green. No flakes observed in either set.
+Six consecutive runs after the shutdown fix (at 45 tests): 13.0 s, 12.7 s, 15.8 s, 15.5 s, 12.8 s, 15.5 s — all green. Three consecutive runs of the final 52: 20.5 s, 20.2 s, 20.0 s — all green. No flakes observed in either set.
 
 Test inventory:
 - `test_ingest.py` (7): three transcript formats, frontmatter, chunk budget + overlap, long-turn splitting, canonical guest, dedupe.
 - `test_units.py` (25): router intents/angles, sanitizer (script/handlers/URLs/CSS/CSP/`<title>` re-homing/truncation/markdown), essay checks incl. truncation detection and cited-only sources, RRF fusion, history trimming.
-- `test_api_integration.py` (19): … plus the Claude Agent SDK runtime driven end-to-end (real SDK subprocess, in-process MCP tools, fake Messages API); health/readiness/config, structured 422/404, session lifecycle + user metadata, session isolation, grounded SSE stream + persisted citations + deep links, mid-turn tool call, follow-up history, essay → markdown artifact, hostile HTML sanitized on write, markdown artifact route, search endpoint, empty retrieval acknowledged, model timeout persisted, no provider, missing model reason, DB down → 503.
+- `test_api_integration.py` (20): … plus the Claude Agent SDK runtime driven end-to-end (real SDK subprocess, in-process MCP tools, fake Messages API); health/readiness/config, structured 422/404, session lifecycle + user metadata, session isolation, grounded SSE stream + persisted citations + deep links, mid-turn tool call, follow-up history, essay → markdown artifact, hostile HTML sanitized on write, markdown artifact route, search endpoint, empty retrieval acknowledged, model timeout persisted, no provider, missing model reason, DB down → 503.
 
 ## Smoke test against the running dev stack (fake LLM as "ollama")
 

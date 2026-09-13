@@ -10,6 +10,7 @@ assistant message so the conversation history explains itself later.
 
 from __future__ import annotations
 
+import asyncio
 import re
 import time
 import uuid
@@ -92,6 +93,18 @@ class ChatService:
             await self._fail(sid, user_text, events, exc.code, exc.message, exc.retryable, t0=t0,
                              provider=status.name, model=status.model, runtime=runtime_name, persisted_user=True)
             return
+        except asyncio.CancelledError:
+            # The client went away mid-turn (tab closed, Stop pressed, network
+            # dropped). The user message is already committed, so without this
+            # the session keeps a question with no answer for ever. Record the
+            # interruption — shielded, because every await here already sits in
+            # a cancelled task — then let the cancellation propagate.
+            log.info("turn_cancelled")
+            try:
+                await asyncio.shield(self._persist_interrupted(sid, t0, status.name, status.model, runtime_name))
+            except Exception:  # noqa: BLE001 — never mask the cancellation
+                log.exception("persist_cancelled_failed")
+            raise
         except Exception as exc:  # noqa: BLE001
             log.exception("turn_failed")
             await self._fail(sid, user_text, events, "internal", f"Unexpected error: {type(exc).__name__}",
@@ -254,6 +267,16 @@ class ChatService:
     async def _artifact_preview(self, art: dict) -> str:
         row = await self.convo.get_artifact(uuid.UUID(art["id"]))
         return (row["content"][:1500] if row else "")
+
+    async def _persist_interrupted(self, sid, t0, provider, model, runtime) -> None:
+        """Close out a turn whose client disconnected, so the session is never
+        left holding a user message with no reply."""
+        await self.convo.add_message(
+            sid, "assistant", "⚠️ Generation was interrupted before it finished.",
+            provider=provider, model=model, runtime=runtime,
+            latency_ms=int((time.perf_counter() - t0) * 1000), error="interrupted",
+        )
+        await self.db.commit()
 
     async def _fail(self, sid, user_text, events, code, message, retryable, *, t0, provider=None, model=None,
                     runtime=None, persisted_user=False) -> None:

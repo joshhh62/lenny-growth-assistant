@@ -17,7 +17,7 @@ A grounded, conversational assistant over **Lenny's Podcast transcripts** for pr
 | **Local or cloud model, switchable in the UI** | Ollama (`qwen2.5:7b`, default, zero keys) or Anthropic Claude. Documented fallback when one is down. |
 | **Ship 30 for 30 essay skill** | Principles encoded in [`SKILL.md`](backend/app/skills/ship30/SKILL.md); ~1,250 words; programmatic quality checks + revision pass. |
 | **Artifacts** | Markdown docs and complete HTML/CSS pages, sanitized server-side and rendered in a sandboxed viewer next to the chat. |
-| **Operable** | `docker compose up`, structured JSON logs, `/health/ready` that names what's wrong, typed errors, 51 automated tests + a smoke script. |
+| **Operable** | `docker compose up`, structured JSON logs, `/health/ready` that names what's wrong, typed errors, 52 automated tests + a smoke script. |
 
 ## Architecture in one paragraph
 
@@ -93,7 +93,9 @@ Ollama runs on the host for performance. Prefer everything in Docker? `docker co
 
 **Context window.** Ollama's default 4,096-token window is too small for grounded prompts (passages + history + skill instructions) and would truncate them silently. Set `OLLAMA_CONTEXT_LENGTH=8192` as in Quick start; the sidebar shows a warning if the loaded model reports less.
 
-**Expected timings on the reference laptop** (i5-12500H, 16 GB, CPU, `qwen2.5:7b`): first token ≈ 10–30 s, a chat answer ≈ 30–90 s, an essay ≈ 3–5 minutes, an HTML artifact ≈ 2–3 minutes. `qwen2.5:3b` is roughly twice as fast with a quality trade-off. Cloud answers in a few seconds.
+**Expected timings on the reference laptop** (i5-12500H, 16 GB, CPU-only — no CUDA, `qwen2.5:7b`), measured with the model already resident in memory: **first token ≈ 50–60 s, a full chat answer ≈ 80 s**, an essay ≈ 3–5 minutes, an HTML artifact ≈ 2–3 minutes. Add ~60 s to the first request after an idle period, while Ollama reloads the model.
+
+Almost all of that is *prompt processing*, not generation: a grounded turn sends 2.5–4k tokens (system prompt + retrieved passages + history) before the model writes its first word, and on CPU that dominates. This is the cost of grounding — a bare `ollama run` prompt answers in seconds because it has none of it. `qwen2.5:3b` is roughly twice as fast with a quality trade-off; any CUDA GPU is an order of magnitude faster. Cloud answers in a few seconds.
 
 ## Running without Docker
 
@@ -110,7 +112,7 @@ cd ../frontend && npm ci && npm run dev      # http://localhost:5173 (proxies /a
 
 ```bash
 cd backend
-python -m pytest -q                       # 51 tests: unit + integration (needs Postgres; creates lenny_test)
+python -m pytest -q                       # 52 tests: unit + integration (needs Postgres; creates lenny_test)
 python -m pytest -q tests/test_units.py tests/test_ingest.py   # unit only, no database
 ```
 Or inside Compose: `make test-integration`. The same suite runs on every push in [GitHub Actions](.github/workflows/tests.yml), together with a frontend type-check and build.
@@ -169,7 +171,7 @@ PRD.md · architecture.md · design.md · docs/manual-test-plan.md · agent-tran
 
 ## Verified on
 - Windows 11, i5-12500H, 16 GB, no dGPU — Docker Desktop (WSL 2) + host Ollama `qwen2.5:7b` — see the demo video.
-- Ubuntu 24.04 container (CI-like): full test suite, 51/51 passing in ~15 s.
+- Ubuntu 24.04 container (CI-like): full test suite, 52/52 passing in ~15 s.
 
 ## Licence & credits
 Transcripts © Lenny Rachitsky, archived by [ChatPRD/lennys-podcast-transcripts](https://github.com/ChatPRD/lennys-podcast-transcripts). Ship 30 for 30 principles from the [Ultimate Guide](https://www.ship30for30.com/post/how-to-start-writing-online-the-ship-30-for-30-ultimate-guide). Code is [MIT](LICENSE).
