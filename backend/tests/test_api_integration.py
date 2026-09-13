@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import shutil
 
@@ -267,3 +268,28 @@ async def test_agent_sdk_runtime_calls_mcp_tool_and_streams(client, monkeypatch)
     detail = (await client.get(f"/api/sessions/{sid}")).json()
     assert detail["messages"][-1]["runtime"] == "agent_sdk"
     assert detail["messages"][-1]["citations"][0]["guest"]
+
+
+# --- client disconnect --------------------------------------------------------
+async def test_client_disconnect_mid_turn_is_recorded(client):
+    """The user message is committed as soon as the turn starts. If the browser
+    goes away before the answer lands (tab closed, Stop pressed, network drop),
+    the session must not be left holding a question with no reply."""
+    sid = (await client.post("/api/sessions", json={})).json()["id"]
+
+    async def consume():
+        async with client.stream("POST", f"/api/sessions/{sid}/messages",
+                                 json={"content": "FAIL_TIMEOUT a slow one"}) as r:
+            async for _ in r.aiter_lines():
+                pass
+
+    task = asyncio.create_task(consume())
+    await asyncio.sleep(0.4)          # let the turn start and commit the user message
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    await asyncio.sleep(0.4)          # the shielded write finishes after cancellation
+
+    detail = (await client.get(f"/api/sessions/{sid}")).json()
+    assert [m["role"] for m in detail["messages"]] == ["user", "assistant"]
+    assert detail["messages"][-1]["error"] == "interrupted"
