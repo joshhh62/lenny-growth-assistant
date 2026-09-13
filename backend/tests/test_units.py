@@ -114,3 +114,35 @@ def test_history_trimming_respects_budget_and_starts_with_user():
     out = ChatService._history_messages(ChatService.__new__(ChatService), hist, budget_tokens=1000)
     assert out[0]["role"] == "user"
     assert len(out) <= 3
+
+
+# --- essay truncation -------------------------------------------------------
+def test_essay_check_detects_truncated_output():
+    """A generation that hits its token ceiling stops mid-sentence. The checker
+    must catch it so the pipeline retries instead of shipping half an essay."""
+    truncated = ESSAY.rsplit(".", 2)[0] + ".\n\nFinding product-market fit once is not the achievement — defending it, on a sh"
+    chk = check_essay(truncated, n_passages=6)
+    assert chk.truncated
+    assert any("truncated" in p for p in chk.problems)
+    assert not chk.ok
+
+
+def test_essay_check_accepts_complete_output():
+    assert not check_essay(ESSAY, n_passages=6).truncated
+
+
+def test_sources_block_lists_only_cited_passages():
+    from app.rag.retriever import Citation
+    from app.skills.ship30.essay import sources_block
+
+    def cite(n: int) -> Citation:
+        return Citation(id=n, episode_id=f"ep{n}", guest=f"Guest {n}", title=f"Title {n}",
+                        speaker=None, start_seconds=60, end_seconds=90, youtube_url=None,
+                        timestamp_url=f"https://youtu.be/x?t={n}", publish_date=None,
+                        text="…", score=1.0, sources=["lexical"])
+
+    cites = [cite(1), cite(2), cite(3)]
+    block = sources_block(cites, used={1, 3})
+    assert "Guest 1" in block and "Guest 3" in block
+    assert "Guest 2" not in block          # never referenced in the body
+    assert "[3]" in block                  # numbering stays stable

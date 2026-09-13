@@ -36,6 +36,12 @@ Every ✗ from the build log, grouped, with the lesson. Kept deliberately: the b
 | `window.innerWidth` at render | Not reactive on resize | `matchMedia` hook | Breakpoints are state |
 | Suggestions disabled without a session | Empty state was dead on first load | Create session then send | Test the very first click |
 
+## Generation budgets (2)
+| Attempt | Why it failed | Fix | Lesson |
+|---|---|---|---|
+| One `max_tokens` for essays across providers | 2,200 fit the local model; on a cloud reasoning model the budget is shared with thinking, so the essay stopped mid-word | Provider-aware budgets (8,000 cloud / 2,600 local), same for artifacts | Token ceilings are per-model, not per-feature |
+| Checker validated only what was present | Word count, headings and citations all "passed" on a half-written essay | Detect no-terminal-punctuation as truncation; treat as severe and retry | Validate the end state, not just the parts |
+
 ## Process (2)
 | Attempt | Why it failed | Fix | Lesson |
 |---|---|---|---|

@@ -72,6 +72,10 @@ class Settings(BaseSettings):
     # Fewer passages for the local model: prompt size is the main driver of
     # time-to-first-token on CPU (each passage ≈ 350 tokens).
     ollama_retrieval_top_k: int = 4
+    # Output budget for a whole artifact (HTML page / Markdown doc). Generous on
+    # cloud so a one-pager is never cut off; tight locally where tokens cost ~8 s.
+    artifact_max_output_tokens: int = 8000
+    ollama_artifact_max_output_tokens: int = 2600
     # Conversation history budget (tokens) sent with each turn; smaller locally.
     history_budget_tokens: int = 2200
     ollama_history_budget_tokens: int = 1200
@@ -120,6 +124,10 @@ class Settings(BaseSettings):
 
     def retrieval_top_k_for(self, provider: Provider) -> int:
         return self.retrieval_top_k if provider == "anthropic" else self.ollama_retrieval_top_k
+
+    def artifact_tokens_for(self, provider: Provider) -> int:
+        return (self.artifact_max_output_tokens if provider == "anthropic"
+                else self.ollama_artifact_max_output_tokens)
 
     def max_output_tokens_for(self, provider: Provider) -> int:
         return self.llm_max_output_tokens if provider == "anthropic" else self.ollama_max_output_tokens
