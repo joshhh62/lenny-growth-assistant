@@ -34,7 +34,7 @@ FastAPI serves a JSON/SSE API backed by PostgreSQL (+pgvector). A deterministic 
 ## Quick start (Docker, one command)
 
 ```bash
-git clone https://github.com/joshithsaip/lenny-growth-assistant.git
+git clone https://github.com/joshhh62/lenny-growth-assistant.git
 cd lenny-growth-assistant
 
 # 1. Local models (one-time, ~5 GB)
