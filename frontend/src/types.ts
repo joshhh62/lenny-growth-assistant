@@ -83,6 +83,8 @@ export interface ArtifactSummary {
 
 export interface Artifact extends ArtifactSummary {
   content: string;
+  /** Citations from the message that produced it — lets the viewer link [n] chips. */
+  citations: Citation[];
 }
 
 export interface SessionDetail {

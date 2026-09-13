@@ -75,6 +75,9 @@ class ArtifactSummary(BaseModel):
 
 class ArtifactOut(ArtifactSummary):
     content: str
+    # From the assistant message that produced it, so the viewer can turn the
+    # artifact's inline [n] markers into working timestamp links.
+    citations: list[dict[str, Any]] = []
 
 
 class SessionDetail(BaseModel):

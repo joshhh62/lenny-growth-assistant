@@ -42,6 +42,17 @@ The user wants a rendered artifact. Call `create_artifact` exactly once with the
 Ground the content in the passages and keep the [n] citations inside the artifact where claims are made.
 """
 
+# Small local models reliably obey the *last* instruction they read far better
+# than rule 1 of 7 in a long system prompt. Repeating the citation requirement
+# immediately after the passages measurably improves marker compliance on
+# qwen2.5:7b, and costs nothing on the cloud model.
+CITE_REMINDER = (
+    "\nWrite your answer now. Put a bracketed passage number next to every claim it comes from, "
+    "like this: Retention compounds because activated teams stay [2]. Use only the numbers above. "
+    "An answer that names a guest without its [n] marker is incomplete."
+)
+
+
 def format_passages(citations: list[dict]) -> str:
     if not citations:
         return NO_CONTEXT_NOTE
@@ -53,6 +64,7 @@ def format_passages(citations: list[dict]) -> str:
             f"[{i}] Episode: {c['title']} | Guest: {c['guest']} | Speaker(s): {c.get('speaker') or 'n/a'} | t={ts_s}\n"
             f"{c['text']}\n"
         )
+    lines.append(CITE_REMINDER)
     return "\n".join(lines)
 
 

@@ -149,6 +149,11 @@ async def test_essay_route_creates_markdown_artifact(client):
     art = (await client.get(f"/api/artifacts/{arts[0]['id']}")).json()
     assert art["content"].startswith("# 5 Retention Lessons")
     assert "### Sources" in art["content"] and "Elena Verna" in art["content"]
+    # The viewer renders the artifact on its own, so it needs the citations from
+    # the message that made it — without them its inline [n] chips link nowhere.
+    assert art["citations"], "artifact must carry its citations for the viewer"
+    assert art["citations"][0]["timestamp_url"].startswith("https://www.youtube.com/watch")
+    assert art["citations"][0]["n"] == 1
     done = events[-1]
     assert done["type"] == "done" and done["artifacts"] == [arts[0]["id"]]
     detail = (await client.get(f"/api/sessions/{sid}")).json()
