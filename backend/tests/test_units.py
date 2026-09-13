@@ -64,6 +64,26 @@ def test_sanitizer_keeps_document_structure():
     assert rep.removed_tags == []
 
 
+def test_sanitizer_lifts_title_into_head():
+    """The model emits its own <head><title>; we rebuild the document, so the
+    title must end up in <head> — not loose in <body>, which is invalid HTML."""
+    html = (
+        "<html><head><title>Best Advice on Activation</title>"
+        "<style>h1{color:#000}</style></head>"
+        "<body><main><h1>Activation</h1></main></body></html>"
+    )
+    out, _ = sanitize_html(html)
+    head, _, body = out.partition("<body>")
+    assert "<title>Best Advice on Activation</title>" in head
+    assert "<title" not in body
+    assert out.index("<title>") < out.index("<style>")  # head order stays sane
+
+
+def test_sanitizer_without_title_emits_no_empty_title():
+    out, _ = sanitize_html("<body><p>hi</p></body>")
+    assert "<title" not in out
+
+
 def test_sanitizer_truncates_oversized():
     out, rep = sanitize_html("<p>" + "a" * 5000 + "</p>", max_bytes=1000)
     assert rep.truncated and len(out) < 2000
