@@ -75,6 +75,7 @@ every state below was verified in a browser at 1440 px and 400 px.
 | **Model timeout / error** | Assistant block with a warning icon, the message, and a retryable toast; the failed turn is persisted so history is honest. |
 | **Not in transcripts** | Normal assistant answer stating the transcripts don't cover it — no fabricated sources; Sources block absent. |
 | **Rename / delete** | Double-click the title to rename (Enter saves, Esc cancels); delete asks for confirmation. |
+| **Another session is generating** | You can switch to any other conversation and read it while an answer streams elsewhere — returning re-attaches the partial answer, still streaming. "New chat" and the provider toggle are disabled until the turn finishes (see §8). |
 
 ## 6. Responsive behaviour
 
@@ -111,3 +112,8 @@ The document itself never scrolls (`body { overflow: hidden }`); each pane scrol
 | Warm paper palette, one accent | Default blue/purple SaaS look | The product is about long-form spoken wisdom; an editorial, print-like feel fits the content and avoids generic "AI app" styling. |
 | Example prompts labelled by kind | Plain suggestions | Teaches the three capabilities (ask / essay / artifact) in the first screen without a tour. |
 | Deleting asks for confirmation; renaming doesn't | Undo toast | Delete cascades to artifacts (irreversible); rename is trivially reversible. |
+| One generation at a time, app-wide | Let every session generate concurrently | The default deployment is a single 7B model on a CPU. Ollama serialises inference anyway, so two "concurrent" turns don't run in parallel — they queue, competing for the same cores and RAM, and *both* finish later than one would have. Allowing it would show two spinners where one is genuinely stuck, which is a worse lie than a disabled button. The UI is designed for the weakest supported deployment rather than the strongest. |
+
+**On that last one — what it would take to lift it.** The constraint is in the frontend only. Each turn already runs in its own asyncio task with its own database session ([architecture.md §3](architecture.md)), and the SSE stream is per-request, so the server handles simultaneous turns today. Switching sessions mid-answer is already supported: the turn belongs to the session that started it, the partial answer is held in a ref and re-attached on return, and every UI write is guarded on whether that session is on screen. Going fully concurrent means promoting that single in-flight turn to a map keyed by session id — roughly thirty lines, no backend change.
+
+The reason to do it is a GPU or cloud-only deployment, where the turns really would run in parallel and the serialisation is pure cost. On the reference laptop it buys queueing, not speed, so it stays deferred with the trigger written down rather than shipped on the assumption that more concurrency is always better.
