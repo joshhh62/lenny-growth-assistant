@@ -16,11 +16,12 @@ Every ✗ from the build log, grouped, with the lesson. Kept deliberately: the b
 | Emit `artifact` event, commit at end of turn | UI fetched before commit → 404 | Commit right after insert | Any event that invites a read must follow the commit |
 | Unbounded `await task` on shutdown | Cancel landed mid-DB-call; process hung | `wait_for(shield(task), 3s)` + bounded `aclose/dispose` | Shutdown paths need timeouts as much as request paths |
 
-## Security (2)
+## Security (3)
 | Attempt | Why it failed | Fix | Lesson |
 |---|---|---|---|
 | `bleach(strip=True)` alone | Keeps `<script>` **text** | Drop dangerous elements with contents first | Sanitizers strip tags, not intent — test with real payloads |
 | Re-validate `data:` images after bleach | bleach had already removed them | Allow at parse layer, then strictly re-validate | Order of layered filters matters |
+| Strip the model's `<html>/<head>/<body>` wrapper and reassemble | `<title>` is on the allow-list, so the model's head-`<title>` survived into our `<body>` — invalid HTML | Lift `<title>` into the assembled `<head>`; collapse the blank lines left behind | Rebuilding a document means re-homing its head elements, not just deleting the wrapper |
 
 ## Retrieval (2)
 | Attempt | Why it failed | Fix | Lesson |

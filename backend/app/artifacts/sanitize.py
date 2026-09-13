@@ -169,10 +169,27 @@ def sanitize_html(html: str, max_bytes: int = 200_000) -> tuple[str, SanitizeRep
     style_tag = f"<style>{' '.join(styles)}</style>" if styles else ""
     body = cleaned
     body = re.sub(r"</?(html|head|body)\b[^>]*>", "", body, flags=re.I)
+
+    # The model writes <title> inside its own <head>; we discard that wrapper and
+    # rebuild the document, so an unhandled <title> would land in <body> (invalid
+    # HTML, and some browsers render it as text). Lift it back into <head>.
+    title_tag = ""
+    m_title = re.search(r"<title\b[^>]*>(.*?)</title\s*>", body, flags=re.I | re.S)
+    if m_title:
+        title_text = re.sub(r"\s+", " ", m_title.group(1)).strip()
+        if title_text:
+            title_tag = f"<title>{title_text}</title>"
+        body = re.sub(r"<title\b[^>]*>.*?</title\s*>", "", body, flags=re.I | re.S)
+    body = re.sub(r"<title\b[^>]*/?>", "", body, flags=re.I)  # stray/unclosed
+
+    # Collapse the blank lines left behind by the stripped head elements.
+    body = re.sub(r"\n{3,}", "\n\n", body).strip("\n")
+
     doc = (
         "<!doctype html><html><head><meta charset=\"utf-8\">"
         + CSP_META
         + "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+        + title_tag
         + style_tag
         + "</head><body>"
         + body
