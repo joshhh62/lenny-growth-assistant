@@ -44,7 +44,21 @@ Hierarchy: *conversation* is primary (centre, widest), *artifact* is a peer that
 
 Dark mode follows `prefers-color-scheme`; contrast on body text is ≥ 7:1 in both modes, on muted text ≥ 4.5:1.
 
-## 4. Key interaction states
+## 4. The built interface
+
+The layout above, as shipped. These are screenshots of the running app, not mockups —
+every state below was verified in a browser at 1440 px and 400 px.
+
+<p align="center"><img src="docs/screenshot-desktop.png" alt="Grounded answer with citation chips, Sources block and the sandboxed HTML artifact open beside the chat" width="900"></p>
+<p align="center"><em>Grounded answer, citations with timestamp links, and an HTML artifact rendered in the sandboxed viewer.</em></p>
+
+<p align="center"><img src="docs/screenshot-essay.png" alt="Ship 30 for 30 essay rendered in the artifact panel next to the conversation" width="900"></p>
+<p align="center"><em>The Ship 30 for 30 essay as a Markdown artifact, with the conversation and its sources still in view.</em></p>
+
+<p align="center"><img src="docs/screenshot-mobile.png" alt="Mobile layout: chat, artifact sheet and session drawer at 400 px" width="820"></p>
+<p align="center"><em>At 400 px: chat, the artifact sheet, and the session drawer — one overlay at a time.</em></p>
+
+## 5. Key interaction states
 
 | State | What the user sees |
 |---|---|
@@ -62,7 +76,7 @@ Dark mode follows `prefers-color-scheme`; contrast on body text is ≥ 7:1 in bo
 | **Not in transcripts** | Normal assistant answer stating the transcripts don't cover it — no fabricated sources; Sources block absent. |
 | **Rename / delete** | Double-click the title to rename (Enter saves, Esc cancels); delete asks for confirmation. |
 
-## 5. Responsive behaviour
+## 6. Responsive behaviour
 
 | Width | Layout |
 |---|---|
@@ -73,7 +87,7 @@ Dark mode follows `prefers-color-scheme`; contrast on body text is ≥ 7:1 in bo
 
 The document itself never scrolls (`body { overflow: hidden }`); each pane scrolls internally, so the header and composer stay put and a long HTML artifact scrolls inside its iframe.
 
-## 6. Accessibility
+## 7. Accessibility
 
 - Landmarks: `<aside aria-label="Conversations">`, `<main>`, `<section aria-label="Artifact viewer">`.
 - The message list is `role="log" aria-live="polite" aria-relevant="additions"`; the activity trace is its own polite live region; toasts are `aria-live="assertive"` and errors use `role="alert"`.
@@ -84,7 +98,7 @@ The document itself never scrolls (`body { overflow: hidden }`); each pane scrol
 - Colour is never the only signal: health dots pair with text reasons; the fallback pill adds the word "fallback".
 - Font sizes in px on a 15 px base with generous line-height; no text below 11 px except mono badges.
 
-## 7. Design decisions and alternatives considered
+## 8. Design decisions and alternatives considered
 
 | Decision | Alternative | Why this way |
 |---|---|---|
