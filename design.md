@@ -55,8 +55,8 @@ every state below was verified in a browser at 1440 px and 400 px.
 <p align="center"><img src="docs/screenshot-essay.png" alt="Ship 30 for 30 essay rendered in the artifact panel next to the conversation" width="900"></p>
 <p align="center"><em>The Ship 30 for 30 essay as a Markdown artifact, with the conversation and its sources still in view.</em></p>
 
-<p align="center"><img src="docs/screenshot-mobile.png" alt="Mobile layout: chat, artifact sheet and session drawer at 400 px" width="820"></p>
-<p align="center"><em>At 400 px: chat, the artifact sheet, and the session drawer — one overlay at a time.</em></p>
+<p align="center"><img src="docs/screenshot-mobile.png" alt="Narrow-width layout: the session list collapsed behind the menu button, chat and citations filling the column" width="420"></p>
+<p align="center"><em>Narrow width: the session list collapses behind the menu button and the chat takes the full column; the artifact opens as a sheet over it. Breakpoints in §6.</em></p>
 
 ## 5. Key interaction states
 
