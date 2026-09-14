@@ -1,6 +1,6 @@
 # Manual test plan — UI
 
-Run against `http://localhost:3000` (Compose) or `:5173` (dev). Automated tests cover the API, retrieval, routing, persistence and sanitisation; this plan covers what only a human can judge. ~20 minutes.
+Run against `http://localhost:3000` (Compose) or `:5173` (dev). Automated tests cover the API, retrieval, routing, persistence and sanitization; this plan covers what only a human can judge. ~20 minutes.
 
 Legend: **P** = must pass before release · **S** = should pass.
 
@@ -26,7 +26,7 @@ Legend: **P** = must pass before release · **S** = should pass.
 ## 3. Skills and artifacts
 | # | Steps | Expected | Pri |
 |---|---|---|---|
-| 3.1 | "Write a Ship 30 for 30 essay on finding product-market fit" | Trace: *Gathering… → Drafting the essay… → (Revising…) → Summarising…*; artifact panel opens with a rendered Markdown essay: H1 headline, hook, 3–6 H2 sections, bullets, bold takeaways, "Do this next", TL;DR, Sources with timestamps; chat shows a 2–3 sentence summary | P |
+| 3.1 | "Write a Ship 30 for 30 essay on finding product-market fit" | Trace: *Gathering… → Drafting the essay… → (Revising…) → Summarising…*; artifact panel opens with a rendered Markdown essay: H1 headline, hook, 3–7 H2 sections, bullets, bold takeaways, "Do this next", TL;DR, Sources with timestamps; chat shows a 2–3 sentence summary | P |
 | 3.2 | Panel → **Source** | Raw Markdown shown; **Copy** copies it; **Download** saves `.md` | S |
 | 3.3 | "Create a markdown checklist for running a good user interview" | Markdown artifact opens; title from the `# heading` | P |
 | 3.4 | "Make an HTML one-pager summarising the best advice on activation" | HTML artifact renders **styled** inside the panel (fonts, spacing, accent colour) — not raw code; footer says *Sandboxed…* | P |

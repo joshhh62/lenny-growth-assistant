@@ -72,9 +72,14 @@ All good.
 ## Ingestion of the real corpus
 
 ```
-ingest_deduped   dropped=31  examples=['alexander-embiricos', 'interview-q-compilation', 'andy-raskin_', 'manik-gupta', 'archie-abrams']
+ingest_deduped   dropped=35  examples=['andy-raskin_', 'april-dunford-20', 'dr-fei-fei-li', 'elena-verna-30', 'ethan-evans-20']
 ingest_complete  episodes_seen=303 episodes_new=268 chunks_written=27454   (≈15 s)
 ```
+303 − 35 = 268: 12 folders repeat a transcript verbatim under a different video
+id, and 23 more share a `video_id` with a folder that survived. An earlier run
+logged `dropped=31` — that was the count *before* the identical-body pass
+existed, and the line above is the current code re-run against the full corpus.
+
 Lexical search latency on 27,454 chunks: 5–9 ms (`/api/search`).
 
 ## Scripted browser runs (Playwright, Chromium)

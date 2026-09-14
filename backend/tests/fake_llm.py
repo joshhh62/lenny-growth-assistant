@@ -1,7 +1,7 @@
 """A tiny fake of the Anthropic Messages API (and Ollama's /api/tags + /api/embed).
 
 Lets the integration tests exercise routing, tool calling, streaming, artifact
-sanitisation and persistence deterministically, with no model or network.
+sanitization and persistence deterministically, with no model or network.
 Behaviour is keyed off markers in the prompt:
 
   * user text contains "USE_TOOL:search"      → first round returns a tool_use for

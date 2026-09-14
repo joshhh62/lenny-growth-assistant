@@ -126,7 +126,7 @@ Or inside Compose: `make test-integration`. Both suites run on every push in [Gi
 
 The component tests cover the two things the UI is actually responsible for: **the rendering boundary** (an HTML artifact must land in an `<iframe sandbox="">` with `referrerPolicy="no-referrer"`, never injected into the app's own document; Markdown must render with raw HTML disabled) and **citation integrity** (an inline `[n]` becomes a link to that passage's exact second, a real Markdown link is left alone, and a missing citation degrades without breaking). Both are regressions that actually happened.
 
-The integration tests run against a real Postgres and an **in-process fake of the Anthropic Messages API** (`tests/fake_llm.py`) that also fakes Ollama's `/api/tags` and `/api/embed` — so routing, tool calling, streaming, persistence, sanitisation and every failure mode are tested deterministically without models or network. One test drives the real Claude Agent SDK subprocess, which shells out to the `claude` CLI (`npm i -g @anthropic-ai/claude-code`); without it that single test skips with a reason and the other 50 still run. CI deliberately leaves the CLI out — it is an independently-versioned external binary, and gating every build on it made the suite fail when a newer build changed how the in-process MCP server is wired. Coverage map is in [PRD → Acceptance criteria](PRD.md#3-acceptance-criteria); the human checklist is [docs/manual-test-plan.md](docs/manual-test-plan.md).
+The integration tests run against a real Postgres and an **in-process fake of the Anthropic Messages API** (`tests/fake_llm.py`) that also fakes Ollama's `/api/tags` and `/api/embed` — so routing, tool calling, streaming, persistence, sanitization and every failure mode are tested deterministically without models or network. One test drives the real Claude Agent SDK subprocess, which shells out to the `claude` CLI (`npm i -g @anthropic-ai/claude-code`); without it that single test skips with a reason and the other 51 still run. CI deliberately leaves the CLI out — it is an independently-versioned external binary, and gating every build on it made the suite fail when a newer build changed how the in-process MCP server is wired. Coverage map is in [PRD → Acceptance criteria](PRD.md#3-acceptance-criteria); the human checklist is [docs/manual-test-plan.md](docs/manual-test-plan.md).
 
 `scripts/smoke.sh [API_BASE]` exercises a running stack end-to-end (readiness → ingest → search → streamed chat → persistence → error envelope).
 
@@ -180,7 +180,7 @@ PRD.md · architecture.md · design.md · docs/manual-test-plan.md · agent-tran
 
 ## Verified on
 - Windows 11, i5-12500H, 16 GB, no dGPU — Docker Desktop (WSL 2) + host Ollama `qwen2.5:7b` — see the demo video.
-- Ubuntu 24.04 container (CI-like): full test suite, 52/52 passing in ~15 s.
+- Ubuntu 24.04 container (CI-like): full test suite, 52/52 passing in ~20 s.
 
 ## Licence & credits
 Transcripts © Lenny Rachitsky, archived by [ChatPRD/lennys-podcast-transcripts](https://github.com/ChatPRD/lennys-podcast-transcripts). Ship 30 for 30 principles from the [Ultimate Guide](https://www.ship30for30.com/post/how-to-start-writing-online-the-ship-30-for-30-ultimate-guide). Code is [MIT](LICENSE).

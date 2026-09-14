@@ -1,4 +1,4 @@
-"""Artifact sanitisation — defence in depth for model-generated HTML.
+"""Artifact sanitization — defence in depth for model-generated HTML.
 
 Threat model: the LLM (or a prompt-injected transcript passage) emits HTML that
 tries to run script, phone home, or break out of the viewer. We treat every

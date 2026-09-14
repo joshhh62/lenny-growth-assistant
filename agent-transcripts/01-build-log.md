@@ -46,9 +46,14 @@ Strip `--` comments before splitting. Health endpoint then reported honestly: DB
 Strict AND first, then relax to OR over the terms if under-filled.
 
 ### ✗ Retrieval showed the same passage twice under two guests ("Madhavan Ramanujam" and "Madhavan Ramanujam 2.0")
-Investigated: **33 `video_id`s appear under two folders** in the source repo, and some folders are mis-filed (`chip-conley/` contains Maggie Crowley's episode; `julian-shapiro/` contains Julie Zhuo's; frontmatter `guest` is wrong for those).
+Investigated: **31 `video_id`s appear under more than one folder** in the source repo, and some folders are mis-filed (`chip-conley/` contains Maggie Crowley's episode; `julian-shapiro/` contains Julie Zhuo's; frontmatter `guest` is wrong for those).
 ### ✓
 Dedupe by `video_id` (winner = slug matching the title-derived guest, else longer transcript); derive `guest` from the title suffix. 303 → 272 episodes. Recorded as a discovery finding in the PRD.
+
+### ✗ Duplicates survived the `video_id` dedupe
+Spot-checking the 272 found pairs like `april-dunford` / `april-dunford-20` still both present: 12 folders carry a **byte-identical transcript** under a *different* video id and title, so the id test never sees them.
+### ✓
+Hash the transcript body and collapse identical bodies first (unsuffixed slug wins), then dedupe by `video_id`. 35 folders drop in total: **303 → 268 episodes**, which is the shipped number.
 
 ### ✗ Server kept old code
 Re-ingest didn't apply the dedupe — the running uvicorn had the old module loaded (no `--reload`). Also my `pkill -f "uvicorn app.main"` pattern matched the shell running it, killing my own command (exit 144) several times.

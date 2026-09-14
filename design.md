@@ -35,14 +35,14 @@ Hierarchy: *conversation* is primary (centre, widest), *artifact* is a peer that
 | `--bg` | `#f6f4ee` paper | `#151412` | app background |
 | `--bg-elev` | `#fffdf8` | `#1d1c19` | panels, cards, sources |
 | `--bg-sunken` | `#efece4` | `#0f0e0d` | inputs, code, user bubble |
-| `--ink / -2 / -3` | `#1e1d1a / #4c4a44 / #7c7970` | `#ecebe5 / #bdbab0 / #85827a` | text hierarchy |
+| `--ink / -2 / -3` | `#1e1d1a / #4c4a44 / #6d6a62` | `#ecebe5 / #bdbab0 / #87847c` | text hierarchy |
 | `--accent` | `#b9471f` terracotta | `#e8773f` | links, citations, primary send |
 | `--ok / --warn / --err` | green / amber / red | lighter variants | health dots, pills, banners |
 | Type | `Inter → system-ui → Segoe UI` 15 px / 1.55; mono for model names and citation numbers | | |
 | Radii | 6 / 10 / 14 px | | |
 | Shadow | one soft elevation only (composer, artifact chips) | | |
 
-Dark mode follows `prefers-color-scheme`; contrast on body text is ≥ 7:1 in both modes, on muted text ≥ 4.5:1.
+Dark mode follows `prefers-color-scheme`. Every text token was measured against every surface it can land on (`--bg`, `--bg-elev`, `--bg-sunken`): body text is ≥ 14:1 in both modes, secondary text ≥ 7:1, and the muted `--ink-3` clears 4.5:1 at its worst pairing (4.57:1 light on `--bg-sunken`, 4.56:1 dark on `--bg-elev`) — it was darkened from `#7c7970` to reach that.
 
 ## 4. The built interface
 
