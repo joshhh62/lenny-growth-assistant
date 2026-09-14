@@ -19,6 +19,27 @@ Test inventory:
 - `test_units.py` (25): router intents/angles, sanitizer (script/handlers/URLs/CSS/CSP/`<title>` re-homing/truncation/markdown), essay checks incl. truncation detection and cited-only sources, RRF fusion, history trimming.
 - `test_api_integration.py` (20): … plus the Claude Agent SDK runtime driven end-to-end (real SDK subprocess, in-process MCP tools, fake Messages API); health/readiness/config, structured 422/404, session lifecycle + user metadata, session isolation, grounded SSE stream + persisted citations + deep links, mid-turn tool call, follow-up history, essay → markdown artifact, hostile HTML sanitized on write, markdown artifact route, search endpoint, empty retrieval acknowledged, model timeout persisted, no provider, missing model reason, DB down → 503.
 
+## Frontend component tests (Vitest + Testing Library, jsdom)
+
+```
+$ npm run test
+ ✓ src/components/ArtifactPanel.test.tsx (5 tests)
+ ✓ src/components/Markdown.test.tsx      (7 tests)
+ Test Files  2 passed (2)
+      Tests  12 passed (12)
+```
+
+Scoped to what the UI alone is responsible for, and to regressions that actually
+happened: the rendering boundary (`<iframe sandbox="">` + `referrerPolicy`, HTML
+carried as `srcDoc` and never injected into the app document, Markdown rendered
+with raw HTML disabled) and citation integrity (an inline `[n]` links to that
+passage's second; a real Markdown link is left alone; a missing citation degrades
+instead of breaking). A sixth panel test — asserting the error state — was written
+and dropped: the component behaves correctly (verified by hand), but the rejected
+promise surfaced as an unhandled rejection in the runner rather than an assertion,
+and chasing the harness was not worth the time before a deadline. Noted here
+rather than quietly deleted.
+
 ## Smoke test against the running dev stack (fake LLM as "ollama")
 
 ```

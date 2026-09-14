@@ -17,7 +17,7 @@ A grounded, conversational assistant over **Lenny's Podcast transcripts** for pr
 | **Local or cloud model, switchable in the UI** | Ollama (`qwen2.5:7b`, default, zero keys) or Anthropic Claude. Documented fallback when one is down. |
 | **Ship 30 for 30 essay skill** | Principles encoded in [`SKILL.md`](backend/app/skills/ship30/SKILL.md); ~1,250 words; programmatic quality checks + revision pass. |
 | **Artifacts** | Markdown docs and complete HTML/CSS pages, sanitized server-side and rendered in a sandboxed viewer next to the chat. |
-| **Operable** | `docker compose up`, structured JSON logs, `/health/ready` that names what's wrong, typed errors, 52 automated tests + a smoke script. |
+| **Operable** | `docker compose up`, structured JSON logs, `/health/ready` that names what's wrong, typed errors, 64 automated tests (52 backend, 12 frontend) + a smoke script. |
 
 ## Architecture in one paragraph
 
@@ -115,7 +115,16 @@ cd backend
 python -m pytest -q                       # 52 tests: unit + integration (needs Postgres; creates lenny_test)
 python -m pytest -q tests/test_units.py tests/test_ingest.py   # unit only, no database
 ```
-Or inside Compose: `make test-integration`. The same suite runs on every push in [GitHub Actions](.github/workflows/tests.yml), together with a frontend type-check and build.
+Frontend:
+
+```bash
+cd frontend
+npm run test          # 12 component tests (Vitest + Testing Library, jsdom)
+```
+
+Or inside Compose: `make test-integration`. Both suites run on every push in [GitHub Actions](.github/workflows/tests.yml), along with the frontend type-check and build.
+
+The component tests cover the two things the UI is actually responsible for: **the rendering boundary** (an HTML artifact must land in an `<iframe sandbox="">` with `referrerPolicy="no-referrer"`, never injected into the app's own document; Markdown must render with raw HTML disabled) and **citation integrity** (an inline `[n]` becomes a link to that passage's exact second, a real Markdown link is left alone, and a missing citation degrades without breaking). Both are regressions that actually happened.
 
 The integration tests run against a real Postgres and an **in-process fake of the Anthropic Messages API** (`tests/fake_llm.py`) that also fakes Ollama's `/api/tags` and `/api/embed` — so routing, tool calling, streaming, persistence, sanitisation and every failure mode are tested deterministically without models or network. One test drives the real Claude Agent SDK subprocess, which shells out to the `claude` CLI (`npm i -g @anthropic-ai/claude-code`); without it that single test skips with a reason and the other 50 still run. CI deliberately leaves the CLI out — it is an independently-versioned external binary, and gating every build on it made the suite fail when a newer build changed how the in-process MCP server is wired. Coverage map is in [PRD → Acceptance criteria](PRD.md#3-acceptance-criteria); the human checklist is [docs/manual-test-plan.md](docs/manual-test-plan.md).
 
