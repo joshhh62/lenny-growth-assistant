@@ -86,11 +86,18 @@ Markdown only:
 ### Sources
 [1] Guest — Episode title (timestamp)
 ```
-Target length 1,150–1,350 words (excluding the Sources list).
+Aim for 1,150–1,350 words (excluding the Sources list) — comfortably inside the
+accepted band below, so a slightly long or short draft still passes.
 
-## Quality checklist (validated programmatically)
-- [ ] 1,100–1,400 words
-- [ ] Exactly one H1; 3–6 H2 sections; a "Do this next" section
-- [ ] ≥ 6 citations, all referencing supplied passage numbers
-- [ ] ≥ 5 bullets; ≥ 3 bold phrases
+## Quality checklist
+
+Every line here is enforced by `check_essay()` in `essay.py`; a draft that fails
+any of them is regenerated rather than shipped. The thresholds below are the
+exact ones the code asserts.
+
+- [ ] 1,000–1,500 words (body only — the Sources list is excluded)
+- [ ] Exactly one H1; 3–7 H2 sections; a "Do this next" / "Next steps" / "Takeaways" section
+- [ ] ≥ 5 citations, every one referencing a supplied passage number
+- [ ] ≥ 4 bullets; ≥ 2 bold phrases
+- [ ] Does not stop mid-sentence (a token-ceiling truncation is detected and retried)
 - [ ] The first 400 characters contain no "In today's", "In this essay", "As we all know"

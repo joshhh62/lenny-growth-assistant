@@ -6,7 +6,8 @@ Every ✗ from the build log, grouped, with the lesson. Kept deliberately: the b
 | Attempt | Why it failed | Fix | Lesson |
 |---|---|---|---|
 | One timestamp regex for all transcripts | Corpus has 3 formats | Three patterns, tested across all 303 files | Profile the whole corpus before trusting a sample |
-| Trust the folder slug / frontmatter `guest` | 33 duplicate `video_id`s, mis-filed folders, "Name 4.0" guests | Dedupe by `video_id`; guest from title when name-like; strip suffixes | Attribution errors are product failures, not data trivia — surface them in the PRD |
+| Trust the folder slug / frontmatter `guest` | 31 duplicate `video_id`s, mis-filed folders, "Name 4.0" guests | Dedupe by `video_id`; guest from title when name-like; strip suffixes | Attribution errors are product failures, not data trivia — surface them in the PRD |
+| Dedupe by `video_id` alone | 12 folders repeat a transcript **verbatim** under a *different* video id — the id test never sees them | Hash the transcript body first, then dedupe by `video_id`; 35 folders drop, not 23 | The obvious key catches the obvious duplicates; check the content too |
 | "Guest = title suffix" everywhere | Some titles have two `\|` with a headline suffix | Name-likeness check with frontmatter fallback | A heuristic needs a negative test set, not just the cases that motivated it |
 
 ## Concurrency & lifecycle (4)

@@ -54,7 +54,7 @@ jobs:
       # server differently, so the model was offered no tools. Rather than gate
       # every build on a moving third-party dependency, CI leaves the CLI out and
       # the test skips itself with a reason; it runs locally, where a developer
-      # has a known CLI version. The other 50 tests gate the build.
+      # has a known CLI version. The other 51 tests gate the build.
       - name: Run tests
         working-directory: backend
         run: python -m pytest -q -ra
@@ -66,7 +66,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
