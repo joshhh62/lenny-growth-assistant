@@ -24,14 +24,14 @@ class ErrorResponse(BaseModel):
 class SessionCreate(BaseModel):
     user_id: str | None = Field(None, max_length=128, description="Client-generated anonymous id")
     display_name: str | None = Field(None, max_length=120)
-    provider: Literal["anthropic", "ollama"] | None = Field(None, description="Defaults to LLM_PROVIDER")
+    provider: Literal["gemini", "ollama"] | None = Field(None, description="Defaults to LLM_PROVIDER")
     title: str | None = Field(None, max_length=200)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class SessionUpdate(BaseModel):
     title: str | None = Field(None, max_length=200)
-    provider: Literal["anthropic", "ollama"] | None = None
+    provider: Literal["gemini", "ollama"] | None = None
 
 
 class SessionOut(BaseModel):

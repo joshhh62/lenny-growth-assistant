@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     id            UUID PRIMARY KEY,
     user_id       TEXT REFERENCES users(id) ON DELETE SET NULL,
     title         TEXT NOT NULL DEFAULT 'New chat',
-    provider      TEXT NOT NULL,                    -- 'anthropic' | 'ollama'
+    provider      TEXT NOT NULL,                    -- 'gemini' | 'ollama'
     model         TEXT NOT NULL,
     metadata      JSONB NOT NULL DEFAULT '{}'::jsonb, -- user agent, locale, etc.
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),

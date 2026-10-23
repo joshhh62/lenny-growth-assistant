@@ -1,4 +1,4 @@
-export type Provider = "anthropic" | "ollama";
+export type Provider = "gemini" | "ollama";
 
 export interface ProviderInfo {
   name: Provider;

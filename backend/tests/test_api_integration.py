@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import shutil
 
 import pytest
 
@@ -36,7 +35,7 @@ async def test_health_and_readiness(client):
     assert ready["database"]["ok"] and ready["database"]["episodes"] == 2  # fixture dedupes 3 → 2
     provs = {p["name"]: p for p in ready["providers"]}
     assert provs["ollama"]["available"] and provs["ollama"]["runtime"] == "messages_loop"
-    assert not provs["anthropic"]["available"] and "ANTHROPIC_API_KEY" in provs["anthropic"]["reason"]
+    assert not provs["gemini"]["available"] and "GEMINI_API_KEY" in provs["gemini"]["reason"]
 
 
 async def test_config_exposes_provider_toggle(client):
@@ -68,8 +67,8 @@ async def test_session_lifecycle_and_user_metadata(client):
     assert s["provider"] == "ollama" and s["model"] == "fake-model" and s["title"] == "New chat"
     assert s["metadata"]["tz"] == "IST" and "user_agent" in s["metadata"]
 
-    r = await client.patch(f"/api/sessions/{s['id']}", json={"title": "Renamed", "provider": "anthropic"})
-    assert r.json()["title"] == "Renamed" and r.json()["provider"] == "anthropic"
+    r = await client.patch(f"/api/sessions/{s['id']}", json={"title": "Renamed", "provider": "gemini"})
+    assert r.json()["title"] == "Renamed" and r.json()["provider"] == "gemini"
 
     listed = (await client.get("/api/sessions", params={"user_id": "u1"})).json()
     assert [x["id"] for x in listed] == [s["id"]]
@@ -246,33 +245,37 @@ async def test_database_down_returns_503(client, monkeypatch):
     assert r.status_code == 503 and r.json()["error"]["code"] == "database_unavailable"
 
 
-# --- Claude Agent SDK runtime ------------------------------------------------
-# The SDK drives the `claude` CLI in a subprocess, so this one test needs that
-# binary on PATH (`npm i -g @anthropic-ai/claude-code`). It is skipped rather
-# than failed when absent, so an evaluator without the CLI still gets a green
-# suite; CI installs it so the path is genuinely exercised.
-@pytest.mark.skipif(
-    shutil.which("claude") is None,
-    reason="claude CLI not on PATH — install @anthropic-ai/claude-code to exercise the Agent SDK runtime",
-)
-async def test_agent_sdk_runtime_calls_mcp_tool_and_streams(client, monkeypatch):
-    """Drives the real Claude Agent SDK subprocess against the fake Messages API:
-    our tools are registered as an in-process MCP server, the model's tool_use is
-    routed to `search_transcripts`, and the answer streams back."""
+# --- Gemini runtime ------------------------------------------------------------
+async def test_gemini_runtime_calls_tool_and_streams(client, fake_llm, monkeypatch):
+    """The cloud provider: Gemini's functionCall is routed to `search_transcripts`,
+    the call part is replayed with its thoughtSignature, and the answer streams back."""
     from app.config import get_settings
 
-    monkeypatch.setattr(get_settings(), "agent_runtime", "agent_sdk")
-    monkeypatch.setattr(get_settings(), "llm_timeout_s", 60.0)
-    sid = (await client.post("/api/sessions", json={})).json()["id"]
-    events = await chat(client, sid, "USE_TOOL:search cohorts via sdk")
-    assert events[0]["type"] == "provider" and events[0]["runtime"] == "agent_sdk"
+    monkeypatch.setattr(get_settings(), "gemini_api_key", "test-key")
+    sid = (await client.post("/api/sessions", json={"provider": "gemini"})).json()["id"]
+    events = await chat(client, sid, "USE_TOOL:search cohorts via gemini")
+    assert events[0]["type"] == "provider" and events[0]["provider"] == "gemini"
+    assert events[0]["runtime"] == "gemini_api" and events[0]["model"] == "fake-gemini"
     assert [e["name"] for e in events if e["type"] == "tool_call"] == ["search_transcripts"]
     text = "".join(e["text"] for e in events if e["type"] == "token")
     assert "After searching again" in text
     assert events[-1]["type"] == "done"
+    replayed = [p for c in fake_llm.calls[-1]["contents"] for p in c["parts"]]
+    assert any(p.get("thoughtSignature") == "fake-signature" for p in replayed)
+    assert any(p.get("functionResponse", {}).get("id") == "call_1" for p in replayed)
     detail = (await client.get(f"/api/sessions/{sid}")).json()
-    assert detail["messages"][-1]["runtime"] == "agent_sdk"
+    assert detail["messages"][-1]["runtime"] == "gemini_api"
     assert detail["messages"][-1]["citations"][0]["guest"]
+
+
+async def test_gemini_missing_key_falls_back_to_ollama(client, monkeypatch):
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "llm_fallback_provider", "ollama")
+    sid = (await client.post("/api/sessions", json={"provider": "gemini"})).json()["id"]
+    events = await chat(client, sid, "hello")
+    assert events[0]["provider"] == "ollama" and events[0]["fallback_used"] is True
+    assert events[-1]["type"] == "done"
 
 
 # --- client disconnect --------------------------------------------------------

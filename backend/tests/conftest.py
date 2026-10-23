@@ -44,8 +44,9 @@ def test_env(fake_llm):
         "OLLAMA_MODEL": "fake-model",
         "OLLAMA_EMBED_MODEL": "nomic-embed-text",
         "EMBEDDINGS_ENABLED": "true",
-        "ANTHROPIC_API_KEY": "",
-        "AGENT_RUNTIME": "messages_loop",
+        "GEMINI_API_KEY": "",
+        "GEMINI_BASE_URL": fake_llm.url + "/gemini",
+        "GEMINI_MODEL": "fake-gemini",
         "OLLAMA_TOOLS_ENABLED": "true",  # exercise the tool loop against the fake
         "LOG_FORMAT": "console",
         "LOG_LEVEL": "WARNING",

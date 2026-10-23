@@ -1,10 +1,10 @@
 """LLM provider registry and fallback.
 
-Both providers speak the Anthropic Messages API:
-  * anthropic → api.anthropic.com with ANTHROPIC_API_KEY
-  * ollama    → <OLLAMA_BASE_URL>/v1/messages (Ollama's Anthropic-compatible endpoint)
+Two providers:
+  * gemini → Google's Gemini API (generativelanguage.googleapis.com) with GEMINI_API_KEY
+  * ollama → <OLLAMA_BASE_URL>/v1/messages (Ollama's Anthropic-compatible endpoint)
 
-So one client library, one tool-calling format, and switching is pure config.
+Each has its own runtime (see app.agent.runtime); switching is pure config.
 `resolve()` implements the documented fallback: if the requested provider is
 unhealthy and a fallback is configured and healthy, use it and *tell the UI*.
 """
@@ -82,36 +82,36 @@ async def check_ollama() -> ProviderStatus:
         )
 
 
-async def check_anthropic() -> ProviderStatus:
+async def check_gemini() -> ProviderStatus:
     s = get_settings()
-    if not s.anthropic_api_key:
+    if not s.gemini_api_key.strip():
         return ProviderStatus(
-            "anthropic", False, s.anthropic_model, "ANTHROPIC_API_KEY not set", None,
-            s.runtime_for("anthropic"),
-        )
-    if not s.anthropic_api_key.startswith("sk-ant-"):
-        return ProviderStatus(
-            "anthropic", False, s.anthropic_model, "ANTHROPIC_API_KEY looks malformed", None,
-            s.runtime_for("anthropic"),
+            "gemini", False, s.gemini_model, "GEMINI_API_KEY not set", None, s.runtime_for("gemini"),
         )
     # We deliberately do not call the API on every health check (cost/latency);
-    # key presence + shape is the readiness signal. Real failures surface per request.
-    return ProviderStatus("anthropic", True, s.anthropic_model, "ok", None, s.runtime_for("anthropic"))
+    # key presence is the readiness signal. Real failures surface per request.
+    return ProviderStatus("gemini", True, s.gemini_model, "ok", None, s.runtime_for("gemini"))
+
+
+async def _check(provider: str) -> ProviderStatus:
+    return await (check_gemini() if provider == "gemini" else check_ollama())
 
 
 async def check_all() -> list[ProviderStatus]:
-    return [await check_anthropic(), await check_ollama()]
+    return [await check_gemini(), await check_ollama()]
 
 
 async def resolve(requested: Provider | None) -> tuple[ProviderStatus, bool]:
     """Pick a usable provider. Returns (status, fallback_used)."""
     s = get_settings()
     want: Provider = requested or s.llm_provider
-    primary = await (check_anthropic() if want == "anthropic" else check_ollama())
+    if want == "anthropic":  # sessions saved before the switch to Gemini
+        want = "gemini"
+    primary = await _check(want)
     if primary.available:
         return primary, False
     if s.llm_fallback_provider and s.llm_fallback_provider != want:
-        fb = await (check_anthropic() if s.llm_fallback_provider == "anthropic" else check_ollama())
+        fb = await _check(s.llm_fallback_provider)
         if fb.available:
             log.warning("provider_fallback", requested=want, used=fb.name, reason=primary.reason)
             return fb, True
@@ -119,22 +119,13 @@ async def resolve(requested: Provider | None) -> tuple[ProviderStatus, bool]:
     raise NoProviderAvailable([primary])
 
 
-def make_client(provider: str) -> anthropic.AsyncAnthropic:
+def make_ollama_client() -> anthropic.AsyncAnthropic:
+    """Ollama serves an Anthropic-compatible Messages endpoint, so the anthropic
+    client library is reused purely as a wire format — no Anthropic key involved."""
     s = get_settings()
-    if provider == "anthropic":
-        return anthropic.AsyncAnthropic(api_key=s.anthropic_api_key, timeout=s.llm_timeout_s, max_retries=1)
     return anthropic.AsyncAnthropic(
         base_url=s.ollama_base_url.rstrip("/"),
         api_key="ollama",
         timeout=s.llm_timeout_s,
         max_retries=0,
     )
-
-
-def agent_sdk_env(provider: str) -> dict[str, str]:
-    """Environment for the Claude Agent SDK subprocess, per provider."""
-    s = get_settings()
-    if provider == "anthropic":
-        return {"ANTHROPIC_API_KEY": s.anthropic_api_key}
-    return {"ANTHROPIC_BASE_URL": s.ollama_base_url.rstrip("/"), "ANTHROPIC_AUTH_TOKEN": "ollama",
-            "ANTHROPIC_API_KEY": ""}

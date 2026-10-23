@@ -199,7 +199,7 @@ export default function App() {
       switch (e.type) {
         case "provider":
           if (onScreen()) setLiveProvider(e);
-          if (e.fallback_used) toast("warn", `${e.reason}; answered with ${e.provider === "ollama" ? "the local model" : "Claude"} instead.`);
+          if (e.fallback_used) toast("warn", `${e.reason}; answered with ${e.provider === "ollama" ? "the local model" : "Gemini"} instead.`);
           break;
         case "status":
           if (onScreen()) setTrace((t) => [...t.map((x) => ({ ...x, done: true })), { text: e.text }]);
@@ -308,7 +308,7 @@ export default function App() {
         {!apiDown && config && !config.providers.some((p) => p.available) && (
           <div className="banner warn" role="status" style={{ margin: 12, marginBottom: 0 }}>
             <span className="grow">
-              <b>No model available.</b> Start Ollama (<code>ollama serve</code>, then <code>ollama pull {config.providers.find((p) => p.name === "ollama")?.model}</code>) or set <code>ANTHROPIC_API_KEY</code>.
+              <b>No model available.</b> Start Ollama (<code>ollama serve</code>, then <code>ollama pull {config.providers.find((p) => p.name === "ollama")?.model}</code>) or set <code>GEMINI_API_KEY</code>.
             </span>
           </div>
         )}

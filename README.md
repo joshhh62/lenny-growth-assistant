@@ -2,7 +2,7 @@
 
 [![tests](https://github.com/joshhh62/lenny-growth-assistant/actions/workflows/tests.yml/badge.svg)](https://github.com/joshhh62/lenny-growth-assistant/actions/workflows/tests.yml)
 
-A grounded, conversational assistant over **Lenny's Podcast transcripts** for product and growth teams. Ask a question and get an answer that cites the episode *and the minute*; ask for a Ship 30 for 30 essay or an HTML one-pager and it renders beside the chat. Runs fully local on a laptop with Ollama, or on Claude with one env var.
+A grounded, conversational assistant over **Lenny's Podcast transcripts** for product and growth teams. Ask a question and get an answer that cites the episode *and the minute*; ask for a Ship 30 for 30 essay or an HTML one-pager and it renders beside the chat. Runs fully local on a laptop with Ollama, or on Google Gemini with one env var.
 
 > Take-home submission for the Forward Deployed Engineer role at Oogway Labs — Joshith Sai Panchumarthi.
 > Docs: **[PRD](PRD.md)** · **[architecture.md](architecture.md)** · **[design.md](design.md)** · [manual test plan](docs/manual-test-plan.md) · [agent transcripts](agent-transcripts/)
@@ -14,14 +14,14 @@ A grounded, conversational assistant over **Lenny's Podcast transcripts** for pr
 | Capability | How |
 |---|---|
 | **Grounded Q&A** with follow-ups | Hybrid retrieval (Postgres full-text + pgvector) over 268 episodes / 27.5k timestamped chunks; every claim carries a `[n]` citation that deep-links to YouTube at that second. Says so when the transcripts don't cover a question. |
-| **Local or cloud model, switchable in the UI** | Ollama (`qwen2.5:7b`, default, zero keys) or Anthropic Claude. Documented fallback when one is down. |
+| **Local or cloud model, switchable in the UI** | Ollama (`qwen2.5:7b`, default, zero keys) or Google Gemini. Documented fallback when one is down. |
 | **Ship 30 for 30 essay skill** | Principles encoded in [`SKILL.md`](backend/app/skills/ship30/SKILL.md); ~1,250 words; programmatic quality checks + revision pass. |
 | **Artifacts** | Markdown docs and complete HTML/CSS pages, sanitized server-side and rendered in a sandboxed viewer next to the chat. |
 | **Operable** | `docker compose up`, structured JSON logs, `/health/ready` that names what's wrong, typed errors, 64 automated tests (52 backend, 12 frontend) + a smoke script. |
 
 ## Architecture in one paragraph
 
-FastAPI serves a JSON/SSE API backed by PostgreSQL (+pgvector). A deterministic router sends each message to grounded chat, the essay skill, or artifact generation. One tool registry (`search_transcripts`, `write_ship30_essay`, `create_artifact`) is driven by either of two runtimes: the **Claude Agent SDK** (cloud) or a lean **Messages-API loop** (local) — both speak the Anthropic Messages format, which Ollama also exposes, so switching provider is pure config. The React UI streams tokens, shows citations and provenance, and renders artifacts in an `<iframe sandbox="">` with a CSP. Details and trade-offs: [architecture.md](architecture.md).
+FastAPI serves a JSON/SSE API backed by PostgreSQL (+pgvector). A deterministic router sends each message to grounded chat, the essay skill, or artifact generation. One tool registry (`search_transcripts`, `write_ship30_essay`, `create_artifact`) is driven by either of two runtimes: a **Gemini API loop** (cloud) or a lean **Messages-API loop** (local, on Ollama's Anthropic-compatible endpoint) — both expose the same tools, so switching provider is pure config. The React UI streams tokens, shows citations and provenance, and renders artifacts in an `<iframe sandbox="">` with a CSP. Details and trade-offs: [architecture.md](architecture.md).
 
 ## Prerequisites
 
@@ -29,7 +29,7 @@ FastAPI serves a JSON/SSE API backed by PostgreSQL (+pgvector). A deterministic 
 |---|---|---|
 | **Docker Desktop** (or Docker Engine + Compose v2) | ✅ | Windows: enable WSL 2 when prompted. |
 | **Ollama** | ✅ for the local model | [ollama.com/download](https://ollama.com/download). ~5 GB of models (below). 16 GB RAM recommended for `qwen2.5:7b`; use `qwen2.5:3b` on 8 GB. |
-| Anthropic API key | optional | Enables the **Cloud** toggle. |
+| Gemini API key | optional | Enables the **Gemini** toggle. |
 | Git | ✅ | The API clones the transcript repo on first boot (~28 MB). |
 | Python 3.11 / Node 22 | only for the no-Docker path or running tests locally | |
 
@@ -49,7 +49,7 @@ ollama pull nomic-embed-text
 #    macOS:   launchctl setenv OLLAMA_HOST 0.0.0.0; launchctl setenv OLLAMA_CONTEXT_LENGTH 8192; restart Ollama
 #    Linux:   OLLAMA_HOST=0.0.0.0 OLLAMA_CONTEXT_LENGTH=8192 ollama serve
 
-# 3. Configure (defaults are fine; add ANTHROPIC_API_KEY if you want Cloud)
+# 3. Configure (defaults are fine; add GEMINI_API_KEY if you want Gemini)
 cp .env.example .env
 
 # 4. Run
@@ -68,11 +68,11 @@ All configuration is environment variables — see [`.env.example`](.env.example
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `LLM_PROVIDER` | `ollama` | Default provider: `ollama` or `anthropic`. The UI can switch per conversation. |
-| `LLM_FALLBACK_PROVIDER` | `anthropic` | Used automatically when the chosen provider is unhealthy (empty = no fallback). |
-| `AGENT_RUNTIME` | `auto` | `auto` = Agent SDK for Anthropic, Messages loop for Ollama. Force with `agent_sdk` / `messages_loop`. |
-| `ANTHROPIC_API_KEY` | *(empty)* | Cloud provider. Never committed. |
-| `ANTHROPIC_MODEL` | `claude-sonnet-5` | Any current Claude model ID (`claude-opus-5`, `claude-haiku-4-5-20251001`, …). |
+| `LLM_PROVIDER` | `ollama` | Default provider: `ollama` or `gemini`. The UI can switch per conversation. |
+| `LLM_FALLBACK_PROVIDER` | `gemini` | Used automatically when the chosen provider is unhealthy (empty = no fallback). |
+| `GEMINI_API_KEY` | *(empty)* | Cloud provider (Google AI Studio key). Never committed. |
+| `GEMINI_MODEL` | `gemini-3.5-flash` | Any model your key lists at `/v1beta/models` (`gemini-3.8-flash`, …). |
+| `GEMINI_THINKING_LEVEL` | `low` | Thinking effort for Gemini 3 models (`minimal`…`high`; empty = model default). |
 | `OLLAMA_BASE_URL` | `http://host.docker.internal:11434` | `http://localhost:11434` when running without Docker. |
 | `OLLAMA_MODEL` | `qwen2.5:7b` | Any Ollama chat model with tool support (`llama3.1:8b`, `qwen2.5:3b`, …). |
 | `OLLAMA_EMBED_MODEL` | `nomic-embed-text` | Embeddings; retrieval degrades to lexical if unavailable. |
@@ -85,8 +85,8 @@ All configuration is environment variables — see [`.env.example`](.env.example
 - Sidebar **Local | Cloud** switches the provider for the current conversation (`PATCH /api/sessions/{id}`); each message records which provider, model and runtime answered it.
 - Before every turn the API health-checks the chosen provider (key present; Ollama reachable *and* model pulled). If it's unhealthy and `LLM_FALLBACK_PROVIDER` is healthy, the turn uses the fallback and the UI marks it (*· fallback* pill + toast with the reason). If neither works you get a `no_provider` error that says exactly what to fix.
 
-### Cloud model (Anthropic)
-Put `ANTHROPIC_API_KEY=sk-ant-…` in `.env`, restart `api`. The Cloud toggle turns green. The Agent SDK runtime is used by default for Anthropic (`AGENT_RUNTIME=auto`).
+### Cloud model (Google Gemini)
+Put `GEMINI_API_KEY=…` in `.env`, restart `api`. The Gemini toggle turns green. Requests go to `generativelanguage.googleapis.com` via the Gemini runtime (streaming + function calling).
 
 ### Local model (Ollama)
 Ollama runs on the host for performance. Prefer everything in Docker? `docker compose --profile ollama-in-docker up --build`, then `docker compose exec ollama ollama pull qwen2.5:7b` (and `nomic-embed-text`) and set `OLLAMA_BASE_URL=http://ollama:11434`.
@@ -126,7 +126,7 @@ Or inside Compose: `make test-integration`. Both suites run on every push in [Gi
 
 The component tests cover the two things the UI is actually responsible for: **the rendering boundary** (an HTML artifact must land in an `<iframe sandbox="">` with `referrerPolicy="no-referrer"`, never injected into the app's own document; Markdown must render with raw HTML disabled) and **citation integrity** (an inline `[n]` becomes a link to that passage's exact second, a real Markdown link is left alone, and a missing citation degrades without breaking). Both are regressions that actually happened.
 
-The integration tests run against a real Postgres and an **in-process fake of the Anthropic Messages API** (`tests/fake_llm.py`) that also fakes Ollama's `/api/tags` and `/api/embed` — so routing, tool calling, streaming, persistence, sanitization and every failure mode are tested deterministically without models or network. One test drives the real Claude Agent SDK subprocess, which shells out to the `claude` CLI (`npm i -g @anthropic-ai/claude-code`); without it that single test skips with a reason and the other 51 still run. CI deliberately leaves the CLI out — it is an independently-versioned external binary, and gating every build on it made the suite fail when a newer build changed how the in-process MCP server is wired. Coverage map is in [PRD → Acceptance criteria](PRD.md#3-acceptance-criteria); the human checklist is [docs/manual-test-plan.md](docs/manual-test-plan.md).
+The integration tests run against a real Postgres and an **in-process fake of the Gemini API and Ollama's Messages API** (`tests/fake_llm.py`) that also fakes Ollama's `/api/tags` and `/api/embed` — so routing, tool calling, streaming, persistence, sanitization and every failure mode are tested deterministically without models or network. Coverage map is in [PRD → Acceptance criteria](PRD.md#3-acceptance-criteria); the human checklist is [docs/manual-test-plan.md](docs/manual-test-plan.md).
 
 `scripts/smoke.sh [API_BASE]` exercises a running stack end-to-end (readiness → ingest → search → streamed chat → persistence → error envelope).
 
@@ -149,7 +149,7 @@ Log events worth knowing: `routed`, `retrieval`, `turn_complete`, `turn_error`, 
 |---|---|
 | Sidebar: **Ollama unreachable at http://host.docker.internal:11434** | Ollama is bound to `127.0.0.1` only. Set `OLLAMA_HOST=0.0.0.0` in Ollama's environment and restart it (Windows: user env var + relaunch from tray). Check from the container: `docker compose exec api curl -s host.docker.internal:11434/api/tags`. |
 | **Model 'qwen2.5:7b' not pulled** | `ollama pull qwen2.5:7b` (or change `OLLAMA_MODEL`). |
-| **ANTHROPIC_API_KEY not set / looks malformed** | Add the key to `.env`, `docker compose restart api`. |
+| **GEMINI_API_KEY not set** | Add the key to `.env`, `docker compose restart api`. |
 | Answers are slow (> 60 s) on the local model | CPU-bound. Use `qwen2.5:3b`, lower `RETRIEVAL_TOP_K` to 4, or switch to Cloud. Essays legitimately take 1–2 minutes locally. |
 | `no_provider` error when sending | Both providers unhealthy — the message lists both reasons. |
 | `database_unavailable` (503) | Postgres not up or wrong `DATABASE_URL`. `docker compose ps db`, `docker compose logs db`. The API keeps running so `/health/ready` can report it. |
@@ -165,7 +165,7 @@ Log events worth knowing: `routed`, `retrieval`, `turn_complete`, `turn_error`, 
 backend/
   app/
     api/routes.py          HTTP + SSE endpoints
-    agent/                 service (orchestration), router, runtime (Messages loop + Agent SDK), tools, prompts, events
+    agent/                 service (orchestration), router, runtime (Messages loop + Gemini), tools, prompts, events
     skills/ship30/         SKILL.md + essay pipeline + checks
     rag/                   ingest (parse/chunk/dedupe), embeddings worker, hybrid retriever
     artifacts/sanitize.py  allow-list sanitizer + CSP
