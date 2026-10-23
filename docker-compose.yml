@@ -1,6 +1,6 @@
 # Lenny Growth Assistant — one-command local deployment.
 #
-#   cp .env.example .env        # optional: set ANTHROPIC_API_KEY, change models
+#   cp .env.example .env        # optional: set GEMINI_API_KEY, change models
 #   docker compose up --build   # UI → http://localhost:3000   API → http://localhost:8000/docs
 #
 # Ollama runs on the HOST by default (best CPU/GPU performance). The API container

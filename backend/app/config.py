@@ -13,8 +13,8 @@ from typing import Literal
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-Provider = Literal["anthropic", "ollama"]
-Runtime = Literal["agent_sdk", "messages_loop", "auto"]
+Provider = Literal["gemini", "ollama"]
+Runtime = Literal["gemini_api", "messages_loop"]
 
 
 class Settings(BaseSettings):
@@ -41,19 +41,20 @@ class Settings(BaseSettings):
     llm_provider: Provider = "ollama"
     # If the chosen provider is unhealthy (no key, Ollama down, timeout),
     # fall back to this one when it is available. Empty string disables.
-    llm_fallback_provider: str = "anthropic"
-    # Which agent runtime to use. `auto` = agent_sdk for anthropic, messages_loop
-    # for ollama (see architecture.md → "Agent runtimes").
-    agent_runtime: Runtime = "auto"
+    llm_fallback_provider: str = "gemini"
     # Read timeout per model request. Local CPU models can take minutes to process
     # a grounded prompt before the first token, so this is generous by default.
     llm_timeout_s: float = 300.0
     llm_max_tool_rounds: int = 6
     llm_max_output_tokens: int = 2048
 
-    # Anthropic (cloud)
-    anthropic_api_key: str = ""
-    anthropic_model: str = "claude-sonnet-5"
+    # Google Gemini (cloud)
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-3.5-flash"
+    gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta"
+    # Gemini 3 models think before answering, and thinking tokens share the
+    # output budget. "low" keeps answers fast and complete; empty = model default.
+    gemini_thinking_level: str = "low"
 
     # Ollama (local)
     ollama_base_url: str = "http://localhost:11434"
@@ -105,8 +106,8 @@ class Settings(BaseSettings):
     @field_validator("llm_fallback_provider")
     @classmethod
     def _validate_fallback(cls, v: str) -> str:
-        if v and v not in ("anthropic", "ollama"):
-            raise ValueError("llm_fallback_provider must be 'anthropic', 'ollama' or empty")
+        if v and v not in ("gemini", "ollama"):
+            raise ValueError("llm_fallback_provider must be 'gemini', 'ollama' or empty")
         return v
 
     @property
@@ -114,28 +115,26 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
     def model_for(self, provider: Provider) -> str:
-        return self.anthropic_model if provider == "anthropic" else self.ollama_model
+        return self.gemini_model if provider == "gemini" else self.ollama_model
 
     def tools_enabled_for(self, provider: Provider) -> bool:
-        return True if provider == "anthropic" else self.ollama_tools_enabled
+        return True if provider == "gemini" else self.ollama_tools_enabled
 
     def history_budget_for(self, provider: Provider) -> int:
-        return self.history_budget_tokens if provider == "anthropic" else self.ollama_history_budget_tokens
+        return self.history_budget_tokens if provider == "gemini" else self.ollama_history_budget_tokens
 
     def retrieval_top_k_for(self, provider: Provider) -> int:
-        return self.retrieval_top_k if provider == "anthropic" else self.ollama_retrieval_top_k
+        return self.retrieval_top_k if provider == "gemini" else self.ollama_retrieval_top_k
 
     def artifact_tokens_for(self, provider: Provider) -> int:
-        return (self.artifact_max_output_tokens if provider == "anthropic"
+        return (self.artifact_max_output_tokens if provider == "gemini"
                 else self.ollama_artifact_max_output_tokens)
 
     def max_output_tokens_for(self, provider: Provider) -> int:
-        return self.llm_max_output_tokens if provider == "anthropic" else self.ollama_max_output_tokens
+        return self.llm_max_output_tokens if provider == "gemini" else self.ollama_max_output_tokens
 
     def runtime_for(self, provider: Provider) -> Runtime:
-        if self.agent_runtime != "auto":
-            return self.agent_runtime
-        return "agent_sdk" if provider == "anthropic" else "messages_loop"
+        return "gemini_api" if provider == "gemini" else "messages_loop"
 
 
 @lru_cache

@@ -1,8 +1,8 @@
 """Tool registry shared by both agent runtimes.
 
 Each tool is defined ONCE (JSON schema + async handler). The Messages-loop
-runtime passes the schemas straight to the Anthropic Messages API; the Agent SDK
-runtime wraps the same handlers as an in-process MCP server. This is the
+runtime (Ollama) passes the schemas in Anthropic Messages format; the Gemini
+runtime passes the same schemas as Gemini function declarations. This is the
 "clear skill boundary" the brief asks for: tools are the only way the model can
 touch retrieval, the essay skill, or artifacts.
 """
@@ -61,6 +61,9 @@ class ToolSpec:
 
     def anthropic_schema(self) -> dict:
         return {"name": self.name, "description": self.description, "input_schema": self.input_schema}
+
+    def gemini_schema(self) -> dict:
+        return {"name": self.name, "description": self.description, "parametersJsonSchema": self.input_schema}
 
 
 # --- search_transcripts -----------------------------------------------------

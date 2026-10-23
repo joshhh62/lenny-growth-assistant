@@ -25,7 +25,7 @@ async def lifespan(app: FastAPI):
     s = get_settings()
     configure_logging(s.log_level, s.log_format)
     log.info("startup", env=s.app_env, provider=s.llm_provider, fallback=s.llm_fallback_provider or None,
-             runtime=s.agent_runtime, ollama=s.ollama_base_url, model_local=s.ollama_model, model_cloud=s.anthropic_model)
+             ollama=s.ollama_base_url, model_local=s.ollama_model, model_cloud=s.gemini_model)
     app.state.db_ready = False
     app.state.embedder = None
     app.state.embedding_worker = None

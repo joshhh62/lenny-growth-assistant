@@ -22,7 +22,7 @@ for p in d["providers"]:
 if not d["database"]["ok"]:
     sys.exit("database not reachable")
 if not any(p["available"] for p in d["providers"]):
-    sys.exit("no LLM provider available (start Ollama or set ANTHROPIC_API_KEY)")
+    sys.exit("no LLM provider available (start Ollama or set GEMINI_API_KEY)")
 EOF
 pass "GET /health/ready"
 

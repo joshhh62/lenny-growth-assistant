@@ -2,29 +2,28 @@
 
 Two implementations of one small interface:
 
-  MessagesLoopRuntime — a lean tool-calling loop on the Anthropic Messages API.
-      Works against Anthropic *and* Ollama's Anthropic-compatible endpoint.
-      Default for local models: minimal prompt overhead, predictable latency on CPU.
+  MessagesLoopRuntime — a lean tool-calling loop on Ollama's Anthropic-compatible
+      Messages endpoint. Used for local models: minimal prompt overhead,
+      predictable latency on CPU.
 
-  AgentSDKRuntime — the Claude Agent SDK (`claude_agent_sdk.query`) with our tools
-      exposed as an in-process MCP server. Default for Anthropic: production agent
-      loop, hooks, budgets, and the same tool definitions.
-
-The trade-off between them is discussed in architecture.md → "Agent runtimes".
+  GeminiRuntime — the same loop on Google's Gemini API, streaming over SSE with
+      our tools exposed as Gemini function declarations. Used for the cloud provider.
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 import anthropic
+import httpx
 
 from app.agent.tools import ALL_TOOLS, ToolContext, dispatch
 from app.config import get_settings
-from app.llm.providers import agent_sdk_env, make_client
+from app.llm.providers import make_ollama_client
 from app.logging_setup import get_logger
 
 log = get_logger("agent")
@@ -54,7 +53,7 @@ class Runtime(Protocol):
 
 def _map_api_error(exc: Exception, provider: str) -> AgentError:
     if isinstance(exc, anthropic.AuthenticationError):
-        return AgentError("auth", "The cloud provider rejected the API key. Check ANTHROPIC_API_KEY.", False)
+        return AgentError("auth", f"The {provider} endpoint rejected the request credentials.", False)
     if isinstance(exc, anthropic.APITimeoutError) or isinstance(exc, asyncio.TimeoutError):
         return AgentError("timeout", f"The {provider} model timed out. Try a shorter question or a smaller model.", True)
     if isinstance(exc, anthropic.APIConnectionError):
@@ -77,7 +76,7 @@ class MessagesLoopRuntime:
     def __init__(self, provider: str, model: str):
         self.provider = provider
         self.model = model
-        self.client = make_client(provider)
+        self.client = make_ollama_client()
         self.settings = get_settings()
 
     async def generate(self, system: str, user: str, *, max_tokens: int | None = None) -> str:
@@ -162,94 +161,186 @@ def _parse_args(raw: Any) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Claude Agent SDK
+# Gemini
 # ---------------------------------------------------------------------------
-class AgentSDKRuntime:
-    name = "agent_sdk"
+_GEMINI_RETRYABLE = {429, 500, 503}
+_GEMINI_RETRIES = 2
+
+
+class GeminiHTTPError(RuntimeError):
+    def __init__(self, status_code: int, message: str):
+        super().__init__(message)
+        self.status_code = status_code
+
+
+def _gemini_error_message(r: httpx.Response) -> str:
+    try:
+        return str(r.json().get("error", {}).get("message", "")) or r.text[:300]
+    except ValueError:
+        return r.text[:300]
+
+
+def _map_gemini_error(exc: Exception, model: str) -> AgentError:
+    if isinstance(exc, AgentError):
+        return exc
+    if isinstance(exc, GeminiHTTPError):
+        code, msg = exc.status_code, str(exc)
+        if code in (401, 403) or (code == 400 and "api key" in msg.lower()):
+            return AgentError("auth", "Gemini rejected the API key. Check GEMINI_API_KEY.", False)
+        if code == 404:
+            return AgentError("model_not_found", f"Model '{model}' not found on Gemini. Check GEMINI_MODEL.", False)
+        if code == 429:
+            return AgentError("rate_limited", "Gemini is rate limiting requests. Please retry shortly.", True)
+        return AgentError("provider_error", f"gemini error {code}: {msg[:200]}", code >= 500)
+    if isinstance(exc, (httpx.TimeoutException, asyncio.TimeoutError)):
+        return AgentError("timeout", "The gemini model timed out. Try a shorter question.", True)
+    if isinstance(exc, httpx.TransportError):
+        return AgentError("unreachable", "Could not reach the Gemini API.", True)
+    return AgentError("unknown", f"{type(exc).__name__}: {str(exc)[:200]}", False)
+
+
+def _to_gemini_contents(messages: list[dict]) -> list[dict]:
+    out = []
+    for m in messages:
+        content = m["content"]
+        if isinstance(content, list):
+            content = "\n".join(c.get("text", "") for c in content if isinstance(c, dict))
+        out.append({"role": "model" if m["role"] == "assistant" else "user", "parts": [{"text": str(content)}]})
+    return out
+
+
+def _check_blocked(data: dict) -> None:
+    reason = (data.get("promptFeedback") or {}).get("blockReason")
+    if reason and not data.get("candidates"):
+        raise AgentError("blocked", f"Gemini declined to answer this prompt ({reason}).", False)
+
+
+class GeminiRuntime:
+    """Tool-calling loop on the Gemini API (`generateContent` / `streamGenerateContent`).
+
+    Function-call parts are replayed verbatim (including `thoughtSignature`),
+    which Gemini 3 models require to continue a tool-calling turn."""
+
+    name = "gemini_api"
 
     def __init__(self, provider: str, model: str):
         self.provider = provider
         self.model = model
         self.settings = get_settings()
-        # Sub-generations (essay skill, artifact drafts) use the plain client: they are
-        # single-shot completions where an agent loop adds nothing but latency.
-        self._plain = MessagesLoopRuntime(provider, model)
+
+    def _client(self) -> httpx.AsyncClient:
+        s = self.settings
+        return httpx.AsyncClient(
+            timeout=httpx.Timeout(s.llm_timeout_s, connect=10.0),
+            headers={"x-goog-api-key": s.gemini_api_key.strip()},
+        )
+
+    def _body(self, system: str, contents: list[dict], max_tokens: int, tools: list[dict] | None = None) -> dict:
+        gen: dict[str, Any] = {"maxOutputTokens": max_tokens}
+        if self.settings.gemini_thinking_level:
+            gen["thinkingConfig"] = {"thinkingLevel": self.settings.gemini_thinking_level}
+        body: dict[str, Any] = {
+            "systemInstruction": {"parts": [{"text": system}]},
+            "contents": contents,
+            "generationConfig": gen,
+        }
+        if tools:
+            body["tools"] = [{"functionDeclarations": tools}]
+        return body
+
+    @asynccontextmanager
+    async def _request(self, client: httpx.AsyncClient, method: str, body: dict):
+        """POST to models/<model>:<method>, retrying overload/rate-limit responses
+        before any output has been consumed."""
+        url = f"{self.settings.gemini_base_url.rstrip('/')}/models/{self.model}:{method}"
+        for attempt in range(_GEMINI_RETRIES + 1):
+            r = await client.send(client.build_request("POST", url, json=body), stream=True)
+            try:
+                if r.status_code in _GEMINI_RETRYABLE and attempt < _GEMINI_RETRIES:
+                    await r.aread()
+                    log.warning("gemini_retry", status=r.status_code, attempt=attempt + 1)
+                    await asyncio.sleep(1.5 * (attempt + 1))
+                    continue
+                if r.status_code >= 400:
+                    await r.aread()
+                    raise GeminiHTTPError(r.status_code, _gemini_error_message(r))
+                yield r
+                return
+            finally:
+                await r.aclose()
 
     async def generate(self, system: str, user: str, *, max_tokens: int | None = None) -> str:
-        return await self._plain.generate(system, user, max_tokens=max_tokens)
+        body = self._body(system, [{"role": "user", "parts": [{"text": user}]}],
+                          max_tokens or self.settings.llm_max_output_tokens)
+        try:
+            async with self._client() as client, self._request(client, "generateContent", body) as r:
+                data = json.loads(await r.aread())
+            _check_blocked(data)
+        except Exception as exc:  # noqa: BLE001
+            raise _map_gemini_error(exc, self.model) from exc
+        parts = ((data.get("candidates") or [{}])[0].get("content") or {}).get("parts") or []
+        return "".join(p.get("text", "") for p in parts if not p.get("thought"))
 
     async def chat(self, *, system: str, messages: list[dict], ctx: ToolContext, use_tools: bool = True) -> RunResult:
-        from claude_agent_sdk import (
-            AssistantMessage, ClaudeAgentOptions, ResultMessage, StreamEvent, TextBlock,
-            create_sdk_mcp_server, query, tool,
-        )
-
-        # Wrap the shared tool handlers as SDK MCP tools bound to this request's context.
-        sdk_tools = []
-        for spec in ALL_TOOLS:
-            def _make(spec_=spec):  # bind per iteration
-                @tool(spec_.name, spec_.description, spec_.input_schema)
-                async def _t(args: dict) -> dict:
-                    out = await dispatch(ctx, spec_.name, args)
-                    return {"content": [{"type": "text", "text": out}]}
-                return _t
-            sdk_tools.append(_make())
-        server = create_sdk_mcp_server(name="lenny", version="1.0.0", tools=sdk_tools)
-
-        prompt = _render_prompt(messages)
-        options = ClaudeAgentOptions(
-            system_prompt=system,
-            model=self.model,
-            tools=[],  # no built-in file/shell tools: this agent only talks to our MCP tools
-            mcp_servers={"lenny": server},
-            allowed_tools=[f"mcp__lenny__{t.name}" for t in ALL_TOOLS] if use_tools else [],
-            permission_mode="bypassPermissions",
-            max_turns=self.settings.llm_max_tool_rounds,
-            env=agent_sdk_env(self.provider),
-            include_partial_messages=True,
-            setting_sources=[],
-        )
+        s = self.settings
+        convo = _to_gemini_contents(messages)
+        tools = [t.gemini_schema() for t in ALL_TOOLS] if use_tools else []
         text_out: list[str] = []
-        usage: dict = {}
+        usage = {"input_tokens": 0, "output_tokens": 0}
+        rounds = 0
         stop = None
-        try:
-            async for msg in query(prompt=prompt, options=options):
-                if isinstance(msg, StreamEvent):
-                    ev = msg.event or {}
-                    if ev.get("type") == "content_block_delta" and ev.get("delta", {}).get("type") == "text_delta":
-                        delta = ev["delta"]["text"]
-                        text_out.append(delta)
-                        await ctx.events.emit("token", text=delta)
-                elif isinstance(msg, AssistantMessage) and not text_out:
-                    # Fallback if partial streaming is unavailable.
-                    for b in msg.content:
-                        if isinstance(b, TextBlock):
-                            text_out.append(b.text)
-                            await ctx.events.emit("token", text=b.text)
-                elif isinstance(msg, ResultMessage):
-                    usage = dict(msg.usage or {})
-                    stop = msg.subtype
-                    if msg.is_error:
-                        raise AgentError("agent_sdk", msg.result or "Agent SDK reported an error", True)
-        except AgentError:
-            raise
-        except Exception as exc:  # noqa: BLE001
-            raise AgentError("agent_sdk", f"Agent SDK failure: {type(exc).__name__}: {str(exc)[:200]}", True) from exc
-        return RunResult("".join(text_out).strip(), usage, 1, stop)
 
+        while rounds < s.llm_max_tool_rounds:
+            rounds += 1
+            body = self._body(system, convo, s.max_output_tokens_for(self.provider), tools)  # type: ignore[arg-type]
+            parts: list[dict] = []
+            calls: list[dict] = []
+            meta: dict = {}
+            try:
+                async with self._client() as client, \
+                        self._request(client, "streamGenerateContent?alt=sse", body) as r:
+                    async for line in r.aiter_lines():
+                        if not line.startswith("data:"):
+                            continue
+                        chunk = json.loads(line[5:].strip() or "{}")
+                        _check_blocked(chunk)
+                        meta = chunk.get("usageMetadata") or meta
+                        cand = (chunk.get("candidates") or [{}])[0]
+                        stop = cand.get("finishReason") or stop
+                        for p in (cand.get("content") or {}).get("parts") or []:
+                            if p.keys() == {"text"} and not p["text"]:
+                                continue  # empty trailing part; Gemini rejects these on replay
+                            parts.append(p)
+                            if "functionCall" in p:
+                                calls.append(p["functionCall"])
+                            elif p.get("text") and not p.get("thought"):
+                                text_out.append(p["text"])
+                                await ctx.events.emit("token", text=p["text"])
+            except Exception as exc:  # noqa: BLE001
+                raise _map_gemini_error(exc, self.model) from exc
 
-def _render_prompt(messages: list[dict]) -> str:
-    """The SDK takes a single prompt; earlier turns are rendered inline."""
-    parts = []
-    for m in messages:
-        content = m["content"]
-        if isinstance(content, list):
-            content = "\n".join(c.get("text", "") for c in content if isinstance(c, dict))
-        parts.append(("User" if m["role"] == "user" else "Assistant") + ": " + str(content))
-    return "\n\n".join(parts)
+            usage["input_tokens"] += meta.get("promptTokenCount", 0) or 0
+            usage["output_tokens"] += meta.get("candidatesTokenCount", 0) or 0
+            if not calls:
+                break
+
+            convo.append({"role": "model", "parts": parts})
+            responses = []
+            for fc in calls:
+                out = await dispatch(ctx, fc["name"], dict(fc.get("args") or {}))
+                fr: dict[str, Any] = {"name": fc["name"], "response": {"result": out}}
+                if fc.get("id"):
+                    fr["id"] = fc["id"]
+                responses.append({"functionResponse": fr})
+            convo.append({"role": "user", "parts": responses})
+            if text_out and text_out[-1] and not text_out[-1].endswith("\n"):
+                await ctx.events.emit("token", text="\n\n")
+                text_out.append("\n\n")
+
+        return RunResult("".join(text_out).strip(), usage, rounds, stop)
 
 
 def build_runtime(provider: str, model: str, runtime_name: str) -> Runtime:
-    if runtime_name == "agent_sdk":
-        return AgentSDKRuntime(provider, model)
+    if runtime_name == "gemini_api":
+        return GeminiRuntime(provider, model)
     return MessagesLoopRuntime(provider, model)

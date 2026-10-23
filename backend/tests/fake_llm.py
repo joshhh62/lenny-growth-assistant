@@ -1,4 +1,5 @@
-"""A tiny fake of the Anthropic Messages API (and Ollama's /api/tags + /api/embed).
+"""A tiny fake of the Anthropic-compatible Messages API Ollama serves, the Gemini
+API (under /gemini), and Ollama's /api/tags + /api/embed.
 
 Lets the integration tests exercise routing, tool calling, streaming, artifact
 sanitization and persistence deterministically, with no model or network.
@@ -164,6 +165,49 @@ def create_app() -> FastAPI:
             norm = math.sqrt(sum(x * x for x in raw)) or 1.0
             vecs.append([x / norm for x in raw])
         return {"embeddings": vecs}
+
+    @app.post("/gemini/models/{target}")
+    async def gemini(target: str, req: Request):
+        """Gemini API shape: POST models/<model>:generateContent | :streamGenerateContent?alt=sse."""
+        body = await req.json()
+        app.state.calls.append(body)
+        last = (body.get("contents") or [{}])[-1]
+        last_parts = last.get("parts", [])
+        if any("functionResponse" in p for p in last_parts):
+            content: Any = [{"type": "tool_result"}]
+        else:
+            content = " ".join(p.get("text", "") for p in last_parts)
+        decls = [d for t in body.get("tools") or [] for d in t.get("functionDeclarations", [])]
+        decision = _decide({"messages": [{"role": "user", "content": content}], "tools": decls})
+        if decision["kind"] == "timeout":
+            await asyncio.sleep(8)
+        if decision["kind"] == "tool":
+            parts = [{"functionCall": {"name": decision["name"], "args": decision["input"], "id": "call_1"},
+                      "thoughtSignature": "fake-signature"}]
+        else:
+            parts = [{"text": decision["text"]}]
+        usage = {"promptTokenCount": 100, "candidatesTokenCount": 50, "totalTokenCount": 150}
+
+        if not target.endswith(":streamGenerateContent"):
+            return JSONResponse({"candidates": [{"content": {"role": "model", "parts": parts}, "finishReason": "STOP"}],
+                                 "usageMetadata": usage})
+
+        async def gen():
+            def ev(chunk_parts: list[dict], final: bool = False) -> str:
+                cand: dict = {"content": {"role": "model", "parts": chunk_parts}, "index": 0}
+                if final:
+                    cand["finishReason"] = "STOP"
+                return "data: " + json.dumps({"candidates": [cand], "usageMetadata": usage}) + "\r\n\r\n"
+            if "text" in parts[0]:
+                words = parts[0]["text"].split(" ")
+                for j in range(0, len(words), 8):
+                    yield ev([{"text": " ".join(words[j:j + 8]) + (" " if j + 8 < len(words) else "")}])
+                    await asyncio.sleep(0)
+            else:
+                yield ev(parts)
+            yield ev([{"text": ""}], final=True)
+
+        return StreamingResponse(gen(), media_type="text/event-stream")
 
     @app.post("/v1/messages")
     async def messages(req: Request):

@@ -26,7 +26,7 @@ export function Sidebar({
 }) {
   const info = (name: Provider) => config?.providers.find((p) => p.name === name);
   const local = info("ollama");
-  const cloud = info("anthropic");
+  const cloud = info("gemini");
   const chosen = info(provider);
 
   return (
@@ -71,15 +71,15 @@ export function Sidebar({
             <button aria-pressed={provider === "ollama"} onClick={() => onProvider("ollama")} disabled={busy} title={local?.reason}>
               <span className={"dot " + (local ? (local.available ? "ok" : "bad") : "")} /> <Cpu size={14} /> Local
             </button>
-            <button aria-pressed={provider === "anthropic"} onClick={() => onProvider("anthropic")} disabled={busy} title={cloud?.reason}>
-              <span className={"dot " + (cloud ? (cloud.available ? "ok" : "bad") : "")} /> <Cloud size={14} /> Cloud
+            <button aria-pressed={provider === "gemini"} onClick={() => onProvider("gemini")} disabled={busy} title={cloud?.reason}>
+              <span className={"dot " + (cloud ? (cloud.available ? "ok" : "bad") : "")} /> <Cloud size={14} /> Gemini
             </button>
           </div>
           {chosen && (
             <div className={"provider-note" + (chosen.available ? "" : " bad")}>
               {chosen.available ? (
                 <>
-                  <b>{chosen.model}</b> via {chosen.runtime === "agent_sdk" ? "Claude Agent SDK" : "Messages loop"}
+                  <b>{chosen.model}</b> via {chosen.runtime === "gemini_api" ? "Gemini API" : "Messages loop"}
                   {chosen.warning && <div className="provider-note bad" style={{ marginTop: 4 }}>⚠ {chosen.warning}</div>}
                 </>
               ) : (
